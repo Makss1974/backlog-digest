@@ -31,7 +31,7 @@ SUMMARY_LANGUAGES = {
     "de": "Deutsch", "it": "Italiano", "pt": "Português", "nl": "Nederlands", "ca": "Català",
     "el": "Ελληνικά", "mt": "Malti",
     # Північна Європа
-    "sv": "Svenska", "no": "Norsk", "da": "Dansk", "fi": "Suomi", "is": "Íslenska",
+    "sv": "Svenska", "nb": "Norsk bokmål", "da": "Dansk", "fi": "Suomi", "is": "Íslenska",
     # Балтія
     "et": "Eesti", "lv": "Latviešu", "lt": "Lietuvių",
     # Центральна Європа

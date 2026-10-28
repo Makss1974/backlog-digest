@@ -131,6 +131,6 @@ def test_summary_languages_cover_europe():
 
     codes = set(i18n.SUMMARY_LANGUAGES)
     assert set(LANGS) <= codes
-    assert {"sv", "no", "da", "fi", "cs", "sk", "hu", "ro", "bg", "el", "nl", "et", "lv", "lt"} <= codes
+    assert {"sv", "nb", "da", "fi", "cs", "sk", "hu", "ro", "bg", "el", "nl", "et", "lv", "lt"} <= codes
     assert "ru" not in codes
     assert all(_LANG_CODE.match(c) for c in codes)
