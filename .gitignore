@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# секрети та локальні дані / secrets and local data
+.env
+config.yaml
+client_secret*.json
+token.json
+*.session
+cookies*.txt
+data/
