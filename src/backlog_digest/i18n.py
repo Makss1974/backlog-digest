@@ -25,14 +25,22 @@ FALLBACK = "en"
 # Мови конспектів: код -> самоназва мови (це дані, а не текст інтерфейсу).
 # Список — лише підказка в меню; можна вказати будь-який код мови.
 SUMMARY_LANGUAGES = {
-    "uk": "Українська",
-    "en": "English",
-    "fr": "Français",
-    "es": "Español",
-    "de": "Deutsch",
-    "pl": "Polski",
-    "it": "Italiano",
-    "pt": "Português",
+    # мови інтерфейсу
+    "uk": "Українська", "en": "English", "fr": "Français", "es": "Español",
+    # Західна й Південна Європа
+    "de": "Deutsch", "it": "Italiano", "pt": "Português", "nl": "Nederlands", "ca": "Català",
+    "el": "Ελληνικά", "mt": "Malti",
+    # Північна Європа
+    "sv": "Svenska", "no": "Norsk", "da": "Dansk", "fi": "Suomi", "is": "Íslenska",
+    # Балтія
+    "et": "Eesti", "lv": "Latviešu", "lt": "Lietuvių",
+    # Центральна Європа
+    "pl": "Polski", "cs": "Čeština", "sk": "Slovenčina", "hu": "Magyar",
+    # Південно-Східна Європа
+    "ro": "Română", "bg": "Български", "hr": "Hrvatski", "sr": "Srpski", "sl": "Slovenščina",
+    "mk": "Македонски", "sq": "Shqip",
+    # Східна Європа та сусіди
+    "be": "Беларуская", "tr": "Türkçe",
 }
 
 # Назви мов, як їх повертає Windows (locale.getlocale() -> "Ukrainian_Ukraine")

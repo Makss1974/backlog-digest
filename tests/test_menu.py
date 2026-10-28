@@ -114,3 +114,12 @@ def test_ask_yes_per_language(monkeypatch, lang, answer):
     feed(monkeypatch, [answer, "nope"])
     assert menu.ask_yes("?") is True
     assert menu.ask_yes("?") is False
+
+
+def test_pick_summary_language_from_list(make_menu, monkeypatch, capsys, paths):
+    n = list(i18n.SUMMARY_LANGUAGES).index("sv") + 1
+    feed(monkeypatch, ["8", "2", str(n), "0", "", "q"])
+    make_menu().run()
+    assert config.load(paths)["general"]["summary_language"] == "sv"
+    out = capsys.readouterr().out
+    assert "Svenska (sv)" in out and "Čeština (cs)" in out

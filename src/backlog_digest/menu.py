@@ -124,9 +124,9 @@ class Menu:
 
     def choose_summary_language(self) -> None:
         codes = list(i18n.SUMMARY_LANGUAGES)
-        for i, code in enumerate(codes, 1):
-            print(f"  {i}. {i18n.SUMMARY_LANGUAGES[code]} ({code})")
-        print(f"  0. {t('settings.other_language')}")
+        cells = [f"{i:>2}. {i18n.SUMMARY_LANGUAGES[code]} ({code})" for i, code in enumerate(codes, 1)]
+        print_columns(cells)
+        print(f"   0. {t('settings.other_language')}")
         current = self.cfg["general"]["summary_language"]
         default = codes.index(current) + 1 if current in codes else 0
         n = ask_int(t("settings.choose"), default, 0, len(codes))
@@ -159,6 +159,15 @@ class Menu:
 def pair(label: str, value: object) -> str:
     """«Назва: значення» за правилами мови (у французькій — пробіл перед двокрапкою)."""
     return t("format.label_value", label=label, value=value)
+
+
+def print_columns(cells: list[str], columns: int = 3) -> None:
+    """Довгий список — у кілька колонок, щоб уміщався на екрані (нумерація йде вниз по колонках)."""
+    rows = -(-len(cells) // columns)
+    width = max(len(c) for c in cells) + 3
+    for r in range(rows):
+        line = "".join(cells[i].ljust(width) for i in range(r, len(cells), rows))
+        print(f"  {line.rstrip()}")
 
 
 def soon(stage: int) -> Callable[[], None]:
