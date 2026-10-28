@@ -1,0 +1,129 @@
+# Français. Les clés doivent être identiques dans toutes les langues (vérifié par tests/test_i18n.py).
+# {nom} est un paramètre — ne pas le traduire.
+
+[meta]
+name = "Français"
+
+[app]
+title = "backlog-digest {version}"
+
+[format]
+label_value = "{label} : {value}"
+
+[menu]
+stats = "Statistiques"
+sources = "Sources : YouTube, dossiers, articles"
+summaries = "Créer des résumés"
+sorting = "Trier par thème + rapport"
+raindrop = "Exporter vers Raindrop.io"
+schedule = "Planification"
+doctor = "Diagnostic (doctor)"
+settings = "Paramètres"
+quit = "Quitter"
+back = "Retour"
+prompt = "Votre choix :"
+no_such_item = "Cet élément n'existe pas."
+press_enter = "Entrée pour revenir au menu..."
+interrupted = "Interrompu. La progression est enregistrée."
+queue_empty = "file d'attente vide"
+queue = "{done} sur {total} terminés, {queued} en attente"
+coming_soon = "Pas encore prêt — arrive à l'étape {stage}."
+enter_number = "Entrez un nombre de {lo} à {hi}."
+opened = "Ouvert : {path}"
+
+[stats]
+title = "Statistiques"
+sources = "Sources"
+items = "Éléments"
+no_sources = "Aucune source pour l'instant. L'ajout de sources arrive à l'étape 2."
+
+[status]
+new = "nouveaux"
+done = "terminés"
+no_text = "sans texte"
+error = "erreur (nouvel essai prévu)"
+failed = "échec (3 essais)"
+
+[settings]
+title = "Paramètres"
+ui_language = "Langue de l'interface"
+summary_language = "Langue des résumés"
+show_paths = "Où le programme garde ses fichiers"
+open_config_dir = "Ouvrir le dossier des paramètres"
+choose = "Numéro"
+other_language = "Autre (saisir un code de langue)"
+language_code = "Code de langue (ex. de, pl, pt-BR) :"
+path_config = "Paramètres"
+path_secrets = "Clés (.env)"
+path_data = "Données (base, cache)"
+saved = "Enregistré : {path}"
+
+[answers]
+yes = ["o", "oui", "y", "yes"]
+yes_no_hint = "o/n"
+
+[config]
+file_header = "Paramètres de backlog-digest. Les clés des modèles ne sont pas ici — elles sont dans le fichier .env à côté."
+err_syntax = "erreur dans {file} : {detail}. Cause fréquente : texte sans guillemets ; mettez la valeur entre guillemets \"...\"."
+err_read = "impossible de lire {file} : {detail}"
+err_ui_language = "langue d'interface « {value} » non prise en charge ; possibles : {allowed}"
+err_summary_language = "« {value} » ne ressemble pas à un code de langue (exemples : uk, en, pt-BR)"
+err_output_kind = "output.kind = « {value} » ; possibles : {allowed}"
+err_positive_int = "{name} doit être un nombre entier supérieur à zéro (actuellement : {value})"
+
+[doctor]
+header = "backlog-digest {version} — diagnostic"
+python = "Python"
+python_old = "{version} — Python 3.11 ou plus récent est requis"
+config = "Paramètres"
+config_missing = "pas encore de fichier, il sera créé au premier lancement : {path}"
+languages = "Langues"
+languages_detail = "interface : {ui} ; résumés : {summary}"
+data_dir = "Dossier de données"
+not_writable = "écriture impossible dans {path} : {detail}"
+database = "Base de données"
+database_detail = "schéma v{version}, {items}"
+key = "Clé {service}"
+key_from_env = "variable d'environnement"
+key_from_file = "fichier .env"
+key_set = "{name} est définie ({where})"
+key_not_set = "{name} n'est pas définie"
+model_keys = "Clés des modèles"
+no_model_key = "aucune clé de modèle — nécessaire pour les résumés (étape 2). Fichier : {file}"
+network = "Réseau"
+network_ok = "accessible : {hosts}"
+network_none = "pas de connexion Internet (ou bloquée par un pare-feu ou un proxy)"
+network_some = "inaccessible : {hosts}"
+tool_djvulibre = "DjVuLibre"
+tool_djvulibre_missing = "introuvable — nécessaire uniquement pour les livres DJVU"
+tool_calibre = "Calibre"
+tool_calibre_missing = "introuvable — nécessaire uniquement pour MOBI, AZW3, DOC"
+tool_ffmpeg = "ffmpeg"
+tool_ffmpeg_missing = "introuvable — nécessaire pour l'audio et les vidéos sans sous-titres (étapes ultérieures)"
+disk = "Espace disque"
+disk_free = "{gb} Go libres ({path})"
+all_ok = "Tout va bien."
+legend = "✓ ok   ! à corriger   ✗ bloque le travail   · pour information"
+
+[plural.items]
+one = "{n} élément"
+other = "{n} éléments"
+
+[plural.doctor_fails]
+one = "{n} problème bloquant trouvé."
+other = "{n} problèmes bloquants trouvés."
+
+[plural.doctor_warns]
+one = "Vous pouvez travailler, mais il y a {n} avertissement."
+other = "Vous pouvez travailler, mais il y a {n} avertissements."
+
+[cli]
+description = "Videz votre pile de vidéos, articles, livres et posts enregistrés : résumés avec évaluation critique."
+help_lang = "langue de l'interface pour ce lancement"
+help_menu = "menu interactif (par défaut)"
+help_doctor = "vérifier que tout est prêt"
+help_offline = "ne pas vérifier le réseau"
+config_error = "Erreur dans les paramètres : {error}"
+run_doctor = "Détails : backlog-digest doctor"
+config_created = "Fichier de paramètres créé : {path}"
+db_error = "Erreur de base de données : {error}"

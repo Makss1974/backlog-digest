@@ -1,0 +1,129 @@
+# Español. Las claves deben coincidir en todos los idiomas (lo comprueba tests/test_i18n.py).
+# {nombre} es un parámetro — no lo traduzcas.
+
+[meta]
+name = "Español"
+
+[app]
+title = "backlog-digest {version}"
+
+[format]
+label_value = "{label}: {value}"
+
+[menu]
+stats = "Estadísticas"
+sources = "Fuentes: YouTube, carpetas, artículos"
+summaries = "Crear resúmenes"
+sorting = "Ordenar por temas + informe"
+raindrop = "Exportar a Raindrop.io"
+schedule = "Programación"
+doctor = "Diagnóstico (doctor)"
+settings = "Ajustes"
+quit = "Salir"
+back = "Volver"
+prompt = "Su elección:"
+no_such_item = "No existe esa opción."
+press_enter = "Pulse Enter para volver al menú..."
+interrupted = "Interrumpido. El progreso está guardado."
+queue_empty = "la cola está vacía"
+queue = "{done} de {total} listos, {queued} en cola"
+coming_soon = "Aún no está listo — llegará en la etapa {stage}."
+enter_number = "Introduzca un número del {lo} al {hi}."
+opened = "Abierto: {path}"
+
+[stats]
+title = "Estadísticas"
+sources = "Fuentes"
+items = "Elementos"
+no_sources = "Aún no hay fuentes. Añadir fuentes llegará en la etapa 2."
+
+[status]
+new = "nuevos"
+done = "listos"
+no_text = "sin texto"
+error = "error (se reintentará)"
+failed = "fallidos (3 intentos)"
+
+[settings]
+title = "Ajustes"
+ui_language = "Idioma de la interfaz"
+summary_language = "Idioma de los resúmenes"
+show_paths = "Dónde guarda el programa sus archivos"
+open_config_dir = "Abrir la carpeta de ajustes"
+choose = "Número"
+other_language = "Otro (introducir un código de idioma)"
+language_code = "Código de idioma (p. ej. de, pl, pt-BR):"
+path_config = "Ajustes"
+path_secrets = "Claves (.env)"
+path_data = "Datos (base, caché)"
+saved = "Guardado: {path}"
+
+[answers]
+yes = ["s", "sí", "si", "y", "yes"]
+yes_no_hint = "s/n"
+
+[config]
+file_header = "Ajustes de backlog-digest. Las claves de los modelos no se guardan aquí — están en el archivo .env de al lado."
+err_syntax = "error en {file}: {detail}. La causa habitual es texto sin comillas; ponga el valor entre comillas \"...\"."
+err_read = "no se puede leer {file}: {detail}"
+err_ui_language = "el idioma de interfaz «{value}» no está disponible; posibles: {allowed}"
+err_summary_language = "«{value}» no parece un código de idioma (ejemplos: uk, en, pt-BR)"
+err_output_kind = "output.kind = «{value}»; posibles: {allowed}"
+err_positive_int = "{name} debe ser un número entero mayor que cero (ahora: {value})"
+
+[doctor]
+header = "backlog-digest {version} — diagnóstico"
+python = "Python"
+python_old = "{version} — se necesita Python 3.11 o posterior"
+config = "Ajustes"
+config_missing = "aún no hay archivo, se creará en el primer inicio: {path}"
+languages = "Idiomas"
+languages_detail = "interfaz: {ui}; resúmenes: {summary}"
+data_dir = "Carpeta de datos"
+not_writable = "no se puede escribir en {path}: {detail}"
+database = "Base de datos"
+database_detail = "esquema v{version}, {items}"
+key = "Clave de {service}"
+key_from_env = "variable de entorno"
+key_from_file = "archivo .env"
+key_set = "{name} definida ({where})"
+key_not_set = "{name} no está definida"
+model_keys = "Claves de modelos"
+no_model_key = "ninguna clave de modelo — necesaria para los resúmenes (etapa 2). Archivo: {file}"
+network = "Red"
+network_ok = "accesible: {hosts}"
+network_none = "sin conexión a Internet (o la bloquea un cortafuegos o proxy)"
+network_some = "inaccesible: {hosts}"
+tool_djvulibre = "DjVuLibre"
+tool_djvulibre_missing = "no encontrado — solo necesario para libros DJVU"
+tool_calibre = "Calibre"
+tool_calibre_missing = "no encontrado — solo necesario para MOBI, AZW3, DOC"
+tool_ffmpeg = "ffmpeg"
+tool_ffmpeg_missing = "no encontrado — necesario para audio y vídeos sin subtítulos (etapas posteriores)"
+disk = "Espacio en disco"
+disk_free = "{gb} GB libres ({path})"
+all_ok = "Todo bien."
+legend = "✓ bien   ! conviene corregir   ✗ impide trabajar   · informativo"
+
+[plural.items]
+one = "{n} elemento"
+other = "{n} elementos"
+
+[plural.doctor_fails]
+one = "Se encontró {n} problema que impide trabajar."
+other = "Se encontraron {n} problemas que impiden trabajar."
+
+[plural.doctor_warns]
+one = "Puede trabajar, pero hay {n} advertencia."
+other = "Puede trabajar, pero hay {n} advertencias."
+
+[cli]
+description = "Despeje su montón de vídeos, artículos, libros y publicaciones guardados: resúmenes con valoración crítica."
+help_lang = "idioma de la interfaz para esta ejecución"
+help_menu = "menú interactivo (por defecto)"
+help_doctor = "comprobar que todo está listo"
+help_offline = "no comprobar la red"
+config_error = "Error en los ajustes: {error}"
+run_doctor = "Detalles: backlog-digest doctor"
+config_created = "Archivo de ajustes creado: {path}"
+db_error = "Error de la base de datos: {error}"

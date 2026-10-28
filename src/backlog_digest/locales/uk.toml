@@ -1,0 +1,132 @@
+# Українська. Ключі мають збігатися в усіх мовах (перевіряє tests/test_i18n.py).
+# {назва} — підстановка; її не перекладати.
+
+[meta]
+name = "Українська"
+
+[app]
+title = "backlog-digest {version}"
+
+[format]
+label_value = "{label}: {value}"
+
+[menu]
+stats = "Статистика"
+sources = "Джерела: YouTube, папки, статті"
+summaries = "Зробити конспекти"
+sorting = "Сортування за темами + звіт"
+raindrop = "Експорт у Raindrop.io"
+schedule = "Розклад"
+doctor = "Перевірка (doctor)"
+settings = "Налаштування"
+quit = "Вихід"
+back = "Назад"
+prompt = "Ваш вибір:"
+no_such_item = "Немає такого пункту."
+press_enter = "Enter — назад у меню..."
+interrupted = "Перервано. Прогрес збережено."
+queue_empty = "черга порожня"
+queue = "готово {done} з {total}, у черзі {queued}"
+coming_soon = "Ще не готово — з'явиться на етапі {stage}."
+enter_number = "Введіть число від {lo} до {hi}."
+opened = "Відкрито: {path}"
+
+[stats]
+title = "Статистика"
+sources = "Джерел"
+items = "Елементів"
+no_sources = "Джерел ще немає. Додавання джерел з'явиться на етапі 2."
+
+[status]
+new = "нові"
+done = "готово"
+no_text = "без тексту"
+error = "помилка (буде повтор)"
+failed = "не вдалося (3 спроби)"
+
+[settings]
+title = "Налаштування"
+ui_language = "Мова інтерфейсу"
+summary_language = "Мова конспектів"
+show_paths = "Де лежать файли програми"
+open_config_dir = "Відкрити теку налаштувань"
+choose = "Номер"
+other_language = "Інша (ввести код мови)"
+language_code = "Код мови (напр. de, pl, pt-BR):"
+path_config = "Налаштування"
+path_secrets = "Ключі (.env)"
+path_data = "Дані (база, кеш)"
+saved = "Збережено: {path}"
+
+[answers]
+yes = ["т", "так", "y", "yes"]
+yes_no_hint = "т/н"
+
+[config]
+file_header = "Налаштування backlog-digest. Ключі моделей тут не зберігаються — вони у файлі .env поруч."
+err_syntax = "помилка в {file}: {detail}. Найчастіша причина — текст без лапок; візьміть значення в лапки \"...\"."
+err_read = "не вдалося прочитати {file}: {detail}"
+err_ui_language = "мова інтерфейсу «{value}» не підтримується; можливі: {allowed}"
+err_summary_language = "«{value}» — не схоже на код мови (приклади: uk, en, pt-BR)"
+err_output_kind = "output.kind = «{value}»; можливі: {allowed}"
+err_positive_int = "{name} має бути цілим числом більше нуля (зараз: {value})"
+
+[doctor]
+header = "backlog-digest {version} — перевірка"
+python = "Python"
+python_old = "{version} — потрібен Python 3.11 або новіший"
+config = "Налаштування"
+config_missing = "файлу ще немає, буде створено під час першого запуску: {path}"
+languages = "Мови"
+languages_detail = "інтерфейс: {ui}; конспекти: {summary}"
+data_dir = "Тека даних"
+not_writable = "немає права запису в {path}: {detail}"
+database = "База"
+database_detail = "схема v{version}, {items}"
+key = "Ключ {service}"
+key_from_env = "змінна середовища"
+key_from_file = "файл .env"
+key_set = "{name} задано ({where})"
+key_not_set = "{name} не задано"
+model_keys = "Ключі моделей"
+no_model_key = "немає жодного ключа моделі — знадобиться для конспектів (етап 2). Файл: {file}"
+network = "Мережа"
+network_ok = "є зв'язок: {hosts}"
+network_none = "немає зв'язку з інтернетом (або його блокує брандмауер чи проксі)"
+network_some = "немає зв'язку з: {hosts}"
+tool_djvulibre = "DjVuLibre"
+tool_djvulibre_missing = "не знайдено — потрібна лише для книг DJVU"
+tool_calibre = "Calibre"
+tool_calibre_missing = "не знайдено — потрібна лише для MOBI, AZW3, DOC"
+tool_ffmpeg = "ffmpeg"
+tool_ffmpeg_missing = "не знайдено — знадобиться для аудіо й відео без субтитрів (пізніші етапи)"
+disk = "Місце на диску"
+disk_free = "вільно {gb} ГБ ({path})"
+all_ok = "Усе гаразд."
+legend = "✓ гаразд   ! варто виправити   ✗ заважає роботі   · для довідки"
+
+[plural.items]
+one = "{n} елемент"
+few = "{n} елементи"
+many = "{n} елементів"
+
+[plural.doctor_fails]
+one = "Знайдено {n} проблему, яка заважає роботі."
+few = "Знайдено {n} проблеми, які заважають роботі."
+many = "Знайдено {n} проблем, які заважають роботі."
+
+[plural.doctor_warns]
+one = "Працювати можна, але є {n} попередження."
+few = "Працювати можна, але є {n} попередження."
+many = "Працювати можна, але є {n} попереджень."
+
+[cli]
+description = "Розбір завалів збережених відео, статей, книг і постів: конспекти з критичною оцінкою."
+help_lang = "мова інтерфейсу на цей запуск"
+help_menu = "інтерактивне меню (за замовчуванням)"
+help_doctor = "перевірити, чи все готово до роботи"
+help_offline = "не перевіряти мережу"
+config_error = "Помилка в налаштуваннях: {error}"
+run_doctor = "Подробиці: backlog-digest doctor"
+config_created = "Створено файл налаштувань: {path}"
+db_error = "Помилка бази: {error}"

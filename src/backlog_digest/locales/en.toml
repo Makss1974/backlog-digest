@@ -1,0 +1,129 @@
+# English. Keys must match in every language (checked by tests/test_i18n.py).
+# {name} is a placeholder — do not translate it.
+
+[meta]
+name = "English"
+
+[app]
+title = "backlog-digest {version}"
+
+[format]
+label_value = "{label}: {value}"
+
+[menu]
+stats = "Statistics"
+sources = "Sources: YouTube, folders, articles"
+summaries = "Make summaries"
+sorting = "Sort by topic + report"
+raindrop = "Export to Raindrop.io"
+schedule = "Schedule"
+doctor = "Health check (doctor)"
+settings = "Settings"
+quit = "Quit"
+back = "Back"
+prompt = "Your choice:"
+no_such_item = "No such item."
+press_enter = "Press Enter to return to the menu..."
+interrupted = "Interrupted. Progress is saved."
+queue_empty = "queue is empty"
+queue = "{done} of {total} done, {queued} in queue"
+coming_soon = "Not ready yet — coming in stage {stage}."
+enter_number = "Enter a number from {lo} to {hi}."
+opened = "Opened: {path}"
+
+[stats]
+title = "Statistics"
+sources = "Sources"
+items = "Items"
+no_sources = "No sources yet. Adding sources arrives in stage 2."
+
+[status]
+new = "new"
+done = "done"
+no_text = "no text"
+error = "error (will retry)"
+failed = "failed (3 attempts)"
+
+[settings]
+title = "Settings"
+ui_language = "Interface language"
+summary_language = "Summary language"
+show_paths = "Where the program keeps its files"
+open_config_dir = "Open the settings folder"
+choose = "Number"
+other_language = "Other (enter a language code)"
+language_code = "Language code (e.g. de, pl, pt-BR):"
+path_config = "Settings"
+path_secrets = "Keys (.env)"
+path_data = "Data (database, cache)"
+saved = "Saved: {path}"
+
+[answers]
+yes = ["y", "yes"]
+yes_no_hint = "y/n"
+
+[config]
+file_header = "backlog-digest settings. Model keys are not stored here — they live in the .env file next to it."
+err_syntax = "error in {file}: {detail}. The usual cause is text without quotes; put the value in quotes \"...\"."
+err_read = "cannot read {file}: {detail}"
+err_ui_language = "interface language \"{value}\" is not supported; available: {allowed}"
+err_summary_language = "\"{value}\" does not look like a language code (examples: uk, en, pt-BR)"
+err_output_kind = "output.kind = \"{value}\"; available: {allowed}"
+err_positive_int = "{name} must be a whole number greater than zero (now: {value})"
+
+[doctor]
+header = "backlog-digest {version} — health check"
+python = "Python"
+python_old = "{version} — Python 3.11 or newer is required"
+config = "Settings"
+config_missing = "no file yet, it will be created on first run: {path}"
+languages = "Languages"
+languages_detail = "interface: {ui}; summaries: {summary}"
+data_dir = "Data folder"
+not_writable = "cannot write to {path}: {detail}"
+database = "Database"
+database_detail = "schema v{version}, {items}"
+key = "{service} key"
+key_from_env = "environment variable"
+key_from_file = ".env file"
+key_set = "{name} is set ({where})"
+key_not_set = "{name} is not set"
+model_keys = "Model keys"
+no_model_key = "no model key yet — needed for summaries (stage 2). File: {file}"
+network = "Network"
+network_ok = "reachable: {hosts}"
+network_none = "no internet connection (or it is blocked by a firewall or proxy)"
+network_some = "cannot reach: {hosts}"
+tool_djvulibre = "DjVuLibre"
+tool_djvulibre_missing = "not found — only needed for DJVU books"
+tool_calibre = "Calibre"
+tool_calibre_missing = "not found — only needed for MOBI, AZW3, DOC"
+tool_ffmpeg = "ffmpeg"
+tool_ffmpeg_missing = "not found — needed for audio and videos without subtitles (later stages)"
+disk = "Disk space"
+disk_free = "{gb} GB free ({path})"
+all_ok = "All good."
+legend = "✓ ok   ! worth fixing   ✗ blocks work   · for information"
+
+[plural.items]
+one = "{n} item"
+other = "{n} items"
+
+[plural.doctor_fails]
+one = "Found {n} problem that blocks work."
+other = "Found {n} problems that block work."
+
+[plural.doctor_warns]
+one = "You can work, but there is {n} warning."
+other = "You can work, but there are {n} warnings."
+
+[cli]
+description = "Clear your backlog of saved videos, articles, books and posts: summaries with a critical score."
+help_lang = "interface language for this run"
+help_menu = "interactive menu (default)"
+help_doctor = "check that everything is ready to work"
+help_offline = "do not check the network"
+config_error = "Settings error: {error}"
+run_doctor = "Details: backlog-digest doctor"
+config_created = "Created settings file: {path}"
+db_error = "Database error: {error}"
