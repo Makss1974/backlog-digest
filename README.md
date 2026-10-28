@@ -15,6 +15,8 @@ Specification (Ukrainian): [docs/ТЗ.md](docs/ТЗ.md)
 
 Based on the working personal prototype `yt-digest` (tag `personal-v1`).
 
+License / Ліцензія: [MIT](LICENSE).
+
 ---
 
 ## Запуск каркаса локально (для розробки)
