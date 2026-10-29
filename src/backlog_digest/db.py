@@ -4,6 +4,7 @@
   sources  — джерело: YouTube, папка, веб-статті, Raindrop, Telegram...
   items    — елемент джерела у конкретному «списку» (плейлист / підпапка / канал / колекція)
   transcripts — зібраний текст (субтитри) за ключем елемента; збирається окремим кроком
+             і видаляється, щойно конспект готовий (лишаються лише позначки «субтитрів немає»)
   results  — конспект; один на ключ елемента, тож те саме відео з YouTube і з Telegram
              (однаковий ключ, напр. youtube:<id>) конспектується один раз
 
@@ -103,6 +104,14 @@ MIGRATIONS: list[str] = [
         generated  INTEGER NOT NULL DEFAULT 0,    -- 1 — автоматичні субтитри
         text       TEXT,                          -- NULL — тексту немає (немає субтитрів)
         fetched_at TEXT NOT NULL
+    );
+    """,
+    # 4 — субтитри видаляються після конспекту, тож добову кількість запитів до YouTube
+    #     рахуємо окремо
+    """
+    CREATE TABLE fetch_log (
+        day      TEXT PRIMARY KEY,                -- дата, РРРР-ММ-ДД
+        requests INTEGER NOT NULL DEFAULT 0
     );
     """,
 ]
@@ -330,11 +339,23 @@ def get_transcript(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
     return row
 
 
+def delete_transcript(conn: sqlite3.Connection, key: str) -> None:
+    """Конспект готовий — текст більше не потрібен (за потреби його можна зібрати знову)."""
+    conn.execute("DELETE FROM transcripts WHERE key=?", (key,))
+    conn.commit()
+
+
+def note_fetch(conn: sqlite3.Connection) -> None:
+    """Рахує запит до YouTube за субтитрами (для добового ліміту)."""
+    conn.execute("INSERT INTO fetch_log (day, requests) VALUES (?, 1) "
+                 "ON CONFLICT(day) DO UPDATE SET requests = requests + 1", (datetime.now().date().isoformat(),))
+    conn.commit()
+
+
 def fetched_today(conn: sqlite3.Connection) -> int:
-    """Скільки текстів зібрано сьогодні (для добового ліміту запитів до YouTube)."""
-    today = datetime.now().date().isoformat()
-    row = conn.execute("SELECT COUNT(*) FROM transcripts WHERE substr(fetched_at, 1, 10)=?", (today,)).fetchone()
-    return int(row[0])
+    """Скільки запитів субтитрів зроблено сьогодні (для добового ліміту запитів до YouTube)."""
+    row = conn.execute("SELECT requests FROM fetch_log WHERE day=?", (datetime.now().date().isoformat(),)).fetchone()
+    return int(row[0]) if row else 0
 
 
 # ---------------------------------------------------------------- конспекти

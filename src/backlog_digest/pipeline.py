@@ -212,11 +212,10 @@ class Processor:
         except youtube.BlockedError:
             raise
         except Exception as e:  # будь-яка інша помилка субтитрів — це помилка елемента, не всього запуску
+            self._count_fetch()
             self._error(item, stats, t("process.transcript_error", detail=short(str(e), 200)))
             return None
-        self._fetch_left -= 1
-        if self._fetch_left <= 0:
-            self._fetching = False
+        self._count_fetch()
         if tr is None:
             db.save_transcript(self.conn, item["key"], None)
             self._no_text(item, stats)
@@ -226,6 +225,13 @@ class Processor:
         self.log("  " + t("process.subtitles", lang=tr.language, chars=len(tr.text),
                           auto=t("process.auto") if tr.generated else ""))
         return tr
+
+    def _count_fetch(self) -> None:
+        """Кожен запит до YouTube іде в добовий ліміт — і вдалий, і «субтитрів немає», і з помилкою."""
+        db.note_fetch(self.conn)
+        self._fetch_left -= 1
+        if self._fetch_left <= 0:
+            self._fetching = False
 
     def _no_text(self, item: dict[str, Any], stats: RunStats) -> None:
         db.mark_no_text(self.conn, item["id"], "no subtitles")
@@ -261,6 +267,7 @@ class Processor:
             return
         db.save_result(self.conn, item["key"], self.language, summary, source_language=tr.language,
                        model=res.model, tokens_in=res.tokens_in, tokens_out=res.tokens_out)
+        db.delete_transcript(self.conn, item["key"])   # конспект є — субтитри більше не потрібні
         path = self._write(item, summary)
         stats.done += 1
         self.log("  " + t("process.done", score=summary["score"],

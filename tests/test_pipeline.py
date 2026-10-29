@@ -215,6 +215,7 @@ def test_summarize_only_uses_stored_text_without_youtube(env, monkeypatch):
     stats = proc.run(limit=10, stage=pipeline.SUMMARIZE)
     assert (stats.done, stats.fetched, proc.sleeps) == (2, 0, [])
     assert db.stage_counts(env.conn, "en") == (1, 0)          # третє відео ще чекає субтитрів
+    assert db.get_transcript(env.conn, "youtube:vid00000001") is None   # конспект є — субтитри видалено
 
 
 def test_fetch_daily_limit_counts_youtube_requests(env):
@@ -227,6 +228,27 @@ def test_fetch_daily_limit_counts_youtube_requests(env):
     assert any("limits.per_day" in line for line in env.logs)
     stats = env.make().run(limit=10)                          # усе разом: конспекти із зібраного — можна
     assert stats.done == 1
+    assert db.fetched_today(env.conn) == 2                    # субтитри видалено, а запити враховано
+
+
+def test_transcript_errors_count_toward_daily_limit(env, monkeypatch):
+    sync(env)
+    env.cfg["limits"]["per_day"] = 1
+
+    def broken(vid, langs):
+        raise RuntimeError("weird failure")
+
+    monkeypatch.setattr(youtube, "fetch_transcript", broken)
+    stats = env.make().run(limit=10, stage=pipeline.FETCH)
+    assert (stats.errors, db.fetched_today(env.conn)) == (1, 1)
+
+
+def test_processed_videos_leave_no_subtitles_behind(env):
+    sync(env)
+    env.transcripts["vid00000002"] = None
+    env.make().run(limit=10)
+    rows = env.conn.execute("SELECT key, text FROM transcripts").fetchall()
+    assert [tuple(r) for r in rows] == [("youtube:vid00000002", None)]   # лишається лише «субтитрів немає»
 
 
 def test_blocked_youtube_still_summarizes_stored_text(env, monkeypatch):
