@@ -8,9 +8,10 @@ import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, i18n, keys, tools
+from . import __version__, config, db, i18n, keys, llm, tools
 from .i18n import t
 from .paths import Paths
 
@@ -39,6 +40,9 @@ def run_checks(paths: Paths, *, network: bool = True) -> list[Check]:
                             t("doctor.languages_detail", ui=i18n.language_name(cfg["general"]["ui_language"]),
                               summary=i18n.SUMMARY_LANGUAGES.get(cfg["general"]["summary_language"],
                                                                  cfg["general"]["summary_language"]))))
+    if cfg:
+        checks.append(check_output(cfg))
+        checks += check_model_order(cfg)
     checks.append(check_data_dir(paths))
     checks.append(check_database(paths))
     checks += check_keys(paths)
@@ -66,6 +70,29 @@ def check_config(paths: Paths) -> tuple[dict[str, Any] | None, Check]:
     if not paths.config_file.exists():
         return cfg, Check(WARN, title, t("doctor.config_missing", path=str(paths.config_file)))
     return cfg, Check(OK, title, str(paths.config_file))
+
+
+def check_output(cfg: dict[str, Any]) -> Check:
+    title = t("doctor.output")
+    raw = cfg["output"]["path"]
+    if not raw:
+        return Check(WARN, title, t("doctor.output_not_set"))
+    path = Path(raw).expanduser()
+    if path.is_dir():
+        kind = t("doctor.output_obsidian") if (path / ".obsidian").is_dir() else t("doctor.output_markdown")
+        return Check(OK, title, f"{path} ({kind})")
+    parent = next((p for p in path.parents if p.exists()), None)
+    if parent is None:
+        return Check(FAIL, title, t("doctor.output_bad", path=str(path)))
+    return Check(WARN, title, t("doctor.output_missing", path=str(path)))
+
+
+def check_model_order(cfg: dict[str, Any]) -> list[Check]:
+    known = {p.name for p in llm.providers_from_config(cfg["models"])}
+    unknown = [n for n in cfg["models"]["order"] if n not in known]
+    if unknown:
+        return [Check(WARN, t("doctor.models"), t("doctor.models_unknown", names=", ".join(unknown)))]
+    return []
 
 
 def check_data_dir(paths: Paths) -> Check:

@@ -54,6 +54,25 @@ def get_secret(name: str, paths: Paths) -> str | None:
     return value or None
 
 
+def set_secret(name: str, value: str, paths: Paths) -> Path:
+    """Записує або замінює ключ у .env (інші рядки й коментарі лишаються як були)."""
+    path = paths.env_file
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = path.read_text(encoding="utf-8-sig").splitlines() if path.exists() else []
+    new_line = f"{name}={value}"
+    for i, raw in enumerate(lines):
+        line = raw.strip().removeprefix("export ").strip()
+        if line.split("=", 1)[0].strip() == name:
+            lines[i] = new_line
+            break
+    else:
+        lines.append(new_line)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if os.name == "posix":
+        path.chmod(0o600)   # лише власник може читати
+    return path
+
+
 def secret_source(name: str, paths: Paths) -> str | None:
     """Звідки береться ключ: 'env', 'file' або None (не задано). Самого значення не повертає."""
     if os.environ.get(name):

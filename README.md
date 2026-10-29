@@ -1,7 +1,7 @@
 # backlog-digest
 
-> 🚧 Early stage — stage 1 of 7 (skeleton: settings, languages, database, `doctor`, menu).
-> Рання стадія — етап 1 із 7 (каркас: налаштування, мови, база, `doctor`, меню).
+> 🚧 Early stage — stage 2 of 7: YouTube playlists/channels → summaries in Obsidian / Markdown.
+> Рання стадія — етап 2 із 7: плейлисти й канали YouTube → конспекти в Obsidian / Markdown.
 
 **EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
 a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
@@ -48,6 +48,35 @@ python -m venv .venv
 ```
 
 На macOS/Linux те саме, але `.venv/bin/...` замість `.venv\Scripts\...`.
+
+### Конспекти YouTube (етап 2)
+
+Без Google Cloud і без ключів YouTube. Потрібен лише ключ моделі — безкоштовний ключ Gemini:
+<https://aistudio.google.com/apikey>.
+
+1. **Ключ:** меню → 8 Налаштування → 4 Ключі моделей → вставити (програма одразу перевіряє ключ
+   і зберігає його у `.env`). Або змінна середовища `GEMINI_API_KEY`.
+2. **Куди складати:** меню → 8 → 3 Тека для конспектів (тека сховища Obsidian або будь-яка тека).
+3. **Що розбирати:** меню → 2 Джерела → 1 Додати YouTube → посилання на плейлист, канал (`@назва`) або відео.
+4. **Конспекти:** меню → 3 → скільки обробити. Ctrl+C зупиняє, прогрес зберігається.
+
+Те саме командами (зручно для розкладу):
+
+```powershell
+.venv\Scripts\bdig add "https://www.youtube.com/playlist?list=..." --name "Наука" --folder "YouTube/Наука"
+.venv\Scripts\bdig sync               # знайти нові відео в усіх джерелах
+.venv\Scripts\bdig process --limit 20
+```
+
+Як це працює і чого чекати:
+- між запитами субтитрів — пауза 15–30 с (`[youtube] delay_min/delay_max`): YouTube обмежує IP за часті запити;
+  якщо обмежив — програма зупиняється, а черга лишається на потім;
+- моделі — черга з запасними: коли денний ліміт однієї вичерпано, береться наступна, а вичерпані
+  запам'ятовуються до скидання лімітів; свої моделі й провайдери — у `[models]` файлу `config.toml`;
+- мова конспекту — будь-яка (налаштування), незалежно від мови відео; підписи нотаток для мов поза
+  uk/en/fr/es модель перекладає один раз, їх можна виправити у `note_labels/<код>.toml`;
+- відео без субтитрів отримують статус «без тексту» (розпізнавання мовлення — на пізніших етапах);
+- те саме відео в кількох списках конспектується один раз.
 
 ### Де програма тримає файли
 

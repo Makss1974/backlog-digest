@@ -1,4 +1,4 @@
-"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [menu | doctor]."""
+"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [menu | doctor | add | sync | process]."""
 from __future__ import annotations
 
 import argparse
@@ -41,17 +41,43 @@ def main(argv: list[str] | None = None) -> int:
         if args.lang:
             cfg["general"]["ui_language"] = args.lang
 
-    from .menu import Menu
-
     try:
         conn = db.connect(paths.db_file)
     except db.DbError as e:
         print(t("cli.db_error", error=str(e)), file=sys.stderr)
         return 2
     try:
-        Menu(paths, cfg, conn).run()
+        return run_command(args, paths, cfg, conn)
+    except KeyboardInterrupt:
+        print(f"\n{t('menu.interrupted')}")
+        return 130
     finally:
         conn.close()
+
+
+def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn: Any) -> int:
+    from . import pipeline
+    from .menu import Menu
+
+    if args.command == "add":
+        name = args.name or "YouTube"
+        if any(s["name"] == name for s in db.list_sources(conn)):
+            print(t("sources.name_taken", name=name), file=sys.stderr)
+            return 2
+        sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
+        print(t("sources.added", name=name))
+        source = db.get_source(conn, sid)
+        if source and not args.no_sync:
+            print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))
+        return 0
+    if args.command == "sync":
+        print(t("sources.synced", new=pipeline.sync_all(conn)))
+        return 0
+    if args.command == "process":
+        limit = args.limit or cfg["limits"]["per_run"]
+        stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source)
+        return 3 if stats.stopped else 0
+    Menu(paths, cfg, conn).run()
     return 0
 
 
@@ -63,6 +89,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("menu", help=t("cli.help_menu"))
     p = sub.add_parser("doctor", help=t("cli.help_doctor"))
     p.add_argument("--offline", action="store_true", help=t("cli.help_offline"))
+    p = sub.add_parser("add", help=t("cli.help_add"))
+    p.add_argument("urls", nargs="+", metavar="URL", help=t("cli.help_urls"))
+    p.add_argument("--name", help=t("cli.help_name"))
+    p.add_argument("--folder", help=t("cli.help_folder"))
+    p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
+    sub.add_parser("sync", help=t("cli.help_sync"))
+    p = sub.add_parser("process", help=t("cli.help_process"))
+    p.add_argument("--limit", type=int, help=t("cli.help_limit"))
+    p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))
     return parser
 
 

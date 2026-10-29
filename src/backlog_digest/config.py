@@ -30,7 +30,22 @@ DEFAULTS: dict[str, Any] = {
         "per_run": 30,            # скільки елементів за один запуск
         "per_day": 100,           # скільки елементів за добу (бережемо квоти моделей і YouTube)
     },
+    "youtube": {
+        "delay_min": 15,          # пауза між запитами субтитрів, с: YouTube блокує IP за часті запити
+        "delay_max": 30,
+        "languages": [],          # бажані мови субтитрів ([] — англійська, потім мова конспектів)
+        "newest_first": False,    # обробляти спершу нові відео списку
+    },
+    "models": {
+        "order": ["gemini", "openrouter", "deepseek"],   # черга провайдерів: перший — основний
+        "thinking": "fast",       # «роздуми» моделі: fast / deep / auto
+        "temperature": 0.3,
+        "max_chars": 200000,      # довший текст обрізається
+        # Свій провайдер або свої моделі: [models.<назва>] base_url, key_env, models, json_mode
+    },
 }
+
+THINKING_MODES = ("fast", "deep", "auto")
 
 _LANG_CODE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 
@@ -94,10 +109,21 @@ def validate(cfg: dict[str, Any]) -> None:
     if cfg["output"]["kind"] not in OUTPUT_KINDS:
         raise ConfigError("config.err_output_kind", value=cfg["output"]["kind"],
                           allowed=", ".join(OUTPUT_KINDS))
-    for name in ("per_run", "per_day"):
-        v = cfg["limits"][name]
+    for section, name in (("limits", "per_run"), ("limits", "per_day"), ("models", "max_chars")):
+        v = cfg[section][name]
         if not isinstance(v, int) or isinstance(v, bool) or v < 1:
-            raise ConfigError("config.err_positive_int", name=f"limits.{name}", value=v)
+            raise ConfigError("config.err_positive_int", name=f"{section}.{name}", value=v)
+    yt = cfg["youtube"]
+    for name in ("delay_min", "delay_max"):
+        if not isinstance(yt[name], int | float) or isinstance(yt[name], bool) or yt[name] < 0:
+            raise ConfigError("config.err_positive_int", name=f"youtube.{name}", value=yt[name])
+    if yt["delay_max"] < yt["delay_min"]:
+        yt["delay_max"] = yt["delay_min"]
+    m = cfg["models"]
+    if m["thinking"] not in THINKING_MODES:
+        raise ConfigError("config.err_thinking", value=m["thinking"], allowed=", ".join(THINKING_MODES))
+    if not isinstance(m["order"], list) or not m["order"]:
+        raise ConfigError("config.err_models_order")
 
 
 def save(paths: Paths, cfg: dict[str, Any]) -> Path:
@@ -118,20 +144,20 @@ def ensure(paths: Paths) -> bool:
 
 
 def dumps(cfg: dict[str, Any], header: str = "") -> str:
-    """Простий запис TOML: розділи зі скалярами й списками (цього достатньо для нашого конфігу)."""
+    """Простий запис TOML: таблиці (й вкладені таблиці) зі скалярами та списками."""
     lines = [f"# {line}" for line in header.splitlines()]
-    scalars = {k: v for k, v in cfg.items() if not isinstance(v, dict)}
-    for k, v in scalars.items():
-        lines.append(f"{_key(k)} = {_value(v)}")
-    for section, values in cfg.items():
-        if not isinstance(values, dict):
-            continue
-        lines += ["", f"[{_key(section)}]"]
-        for k, v in values.items():
-            if isinstance(v, dict):
-                raise TypeError(f"nested table {section}.{k} is not supported")
-            lines.append(f"{_key(k)} = {_value(v)}")
+    _dump_table(cfg, [], lines)
     return "\n".join(lines) + "\n"
+
+
+def _dump_table(table: dict[str, Any], path: list[str], lines: list[str]) -> None:
+    for k, v in table.items():
+        if not isinstance(v, dict):
+            lines.append(f"{_key(k)} = {_value(v)}")
+    for k, v in table.items():
+        if isinstance(v, dict):
+            lines += ["", f"[{'.'.join(_key(p) for p in [*path, k])}]"]
+            _dump_table(v, [*path, k], lines)
 
 
 def _key(k: str) -> str:

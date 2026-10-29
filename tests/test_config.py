@@ -73,5 +73,5 @@ def test_invalid_config(paths, text, key):
 
 
 def test_dumps_is_valid_toml():
-    data = {"a": 1, "s": {"b": True, "c": [1, "x"], "weird key": 1.5}}
+    data = {"a": 1, "s": {"b": True, "c": [1, "x"], "weird key": 1.5, "sub": {"d": "e"}}, "t": {}}
     assert tomllib.loads(config.dumps(data, header="line 1\nline 2")) == data

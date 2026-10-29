@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from backlog_digest import config, db, llm, pipeline, youtube
+
+GOOD = json.dumps({
+    "about": "What it is about.", "key_points": ["k1", "k2"], "useful": ["u1"], "recommendations_count": 2,
+    "evidence": "medium", "evidence_notes": "data", "questionable_claims": [], "water_percent": 10,
+    "water_parts": "", "audience": "all", "verdict": "summary_enough", "verdict_reason": "r", "score": 3,
+    "tags": ["t"],
+})
+
+
+class FakeChain:
+    def __init__(self, answers=None, exhausted=False):
+        self.answers = list(answers or [])
+        self.slots = [object()]
+        self.exhausted = exhausted
+        self.calls = []
+
+    def active(self):
+        return [] if self.exhausted else ["fake/model"]
+
+    def complete(self, system, user, *, deep=False, json_out=True):
+        self.calls.append(user)
+        reply = self.answers.pop(0) if self.answers else GOOD
+        if isinstance(reply, Exception):
+            raise reply
+        return llm.LLMResult(reply, "fake/model", 100, 50)
+
+
+@pytest.fixture
+def env(paths, tmp_path, monkeypatch):
+    cfg = config.defaults()
+    cfg["output"]["path"] = str(tmp_path / "vault")
+    conn = db.connect(paths.db_file)
+    listing = youtube.Listing("Playlist", [youtube.Entry(f"vid{i:08d}", f"Video {i}", "Chan", 60 * i)
+                                           for i in range(1, 4)])
+    monkeypatch.setattr(youtube, "list_url", lambda url, cookies=None: listing)
+    transcripts = {}
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, langs: transcripts.get(
+        vid, youtube.Transcript(f"[00:00] text of {vid}", "en", True)))
+    sid = pipeline.add_youtube_source(conn, "YouTube", ["https://www.youtube.com/playlist?list=PL1"], "Video")
+    logs = []
+
+    def make(chain=None):
+        sleeps = []
+        proc = pipeline.Processor(conn, cfg, paths, log=logs.append, chain=chain or FakeChain(),
+                                  sleep=sleeps.append)
+        proc.sleeps = sleeps
+        return proc
+
+    yield type("Env", (), {"cfg": cfg, "conn": conn, "sid": sid, "make": staticmethod(make), "logs": logs,
+                           "transcripts": transcripts, "root": tmp_path / "vault"})
+    conn.close()
+
+
+def sync(env):
+    return pipeline.sync_source(env.conn, db.get_source(env.conn, env.sid), env.logs.append)
+
+
+def test_sync_adds_and_does_not_duplicate(env):
+    assert sync(env) == (3, 3)
+    assert sync(env) == (0, 3)
+    row = env.conn.execute("SELECT * FROM items ORDER BY position").fetchone()
+    assert (row["key"], row["list_name"], row["url"], row["duration"]) == (
+        "youtube:vid00000001", "Playlist", "https://www.youtube.com/watch?v=vid00000001", 60)
+
+
+def test_sync_reports_broken_list(env, monkeypatch):
+    def broken(url, cookies=None):
+        raise youtube.ListError("private playlist")
+
+    monkeypatch.setattr(youtube, "list_url", broken)
+    assert sync(env) == (0, 0)
+    assert any("private playlist" in line for line in env.logs)
+
+
+def test_process_writes_notes(env):
+    sync(env)
+    proc = env.make()
+    stats = proc.run(limit=10)
+    assert (stats.done, stats.errors, stats.tokens) == (3, 0, 450)
+    assert len(proc.sleeps) == 2                          # пауза між відео, але не перед першим
+    note = env.root / "Video" / "Playlist" / "Video 1.md"
+    text = note.read_text(encoding="utf-8")
+    assert "What it is about." in text and "Summary is enough" in text
+    row = env.conn.execute("SELECT * FROM items WHERE key='youtube:vid00000001'").fetchone()
+    assert row["status"] == db.DONE and row["note_path"] == str(note)
+    assert db.get_result(env.conn, "youtube:vid00000001", "en")["model"] == "fake/model"
+
+
+def test_limit_and_daily_limit(env):
+    sync(env)
+    assert env.make().run(limit=1).done == 1
+    env.cfg["limits"]["per_day"] = 2
+    assert env.make().run(limit=10).done == 1             # лишалося 2 − 1 на сьогодні
+    assert env.make().run(limit=10).done == 0
+    assert any("limits.per_day" in line for line in env.logs)
+
+
+def test_no_subtitles_and_errors(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+
+    def fetch(vid, langs):
+        if vid == "vid00000002":
+            raise RuntimeError("weird failure")
+        return env.transcripts.get(vid, youtube.Transcript("text", "en", False))
+
+    monkeypatch.setattr(youtube, "fetch_transcript", fetch)
+    stats = env.make().run(limit=10)
+    assert (stats.done, stats.no_text, stats.errors) == (1, 1, 1)
+    counts = db.status_counts(env.conn)
+    assert (counts[db.NO_TEXT], counts[db.ERROR], counts[db.DONE]) == (1, 1, 1)
+
+
+def test_broken_json_is_retried_once(env):
+    sync(env)
+    chain = FakeChain(["not json", GOOD, "bad", "still bad"])
+    stats = env.make(chain).run(limit=2)
+    assert (stats.done, stats.errors) == (1, 1)
+    assert "could not be parsed" in chain.calls[1]
+
+
+def test_blocked_youtube_stops_the_run(env, monkeypatch):
+    sync(env)
+
+    def blocked(vid, langs):
+        raise youtube.BlockedError("HTTP 429")
+
+    monkeypatch.setattr(youtube, "fetch_transcript", blocked)
+    stats = env.make().run(limit=10)
+    assert stats.stopped == "blocked" and stats.errors == 0
+    assert db.status_counts(env.conn)[db.NEW] == 3       # нічого не зіпсовано, усе лишилось у черзі
+
+
+def test_quota_stops_the_run_without_marking_errors(env):
+    sync(env)
+    stats = env.make(FakeChain([GOOD, llm.QuotaExhausted("all")])).run(limit=10)
+    assert (stats.done, stats.errors, stats.stopped) == (1, 0, "quota")
+    assert db.status_counts(env.conn)[db.NEW] == 2
+
+
+def test_model_error_marks_item_and_continues(env):
+    sync(env)
+    stats = env.make(FakeChain([llm.LLMError("boom")])).run(limit=10)
+    assert (stats.done, stats.errors) == (2, 1)
+
+
+def test_same_video_in_another_list_reuses_summary(env, monkeypatch):
+    sync(env)
+    env.make().run(limit=10)
+    sid2 = pipeline.add_youtube_source(env.conn, "Other", ["x"], "Other")
+    pipeline.sync_source(env.conn, db.get_source(env.conn, sid2), env.logs.append)
+    chain = FakeChain()
+    stats = env.make(chain).run(limit=10)
+    assert (stats.reused, stats.done, chain.calls) == (3, 0, [])
+    assert (env.root / "Other" / "Playlist" / "Video 2.md").exists()
+
+
+def test_not_ready(env):
+    sync(env)
+    assert env.make(FakeChain(exhausted=True)).run(limit=10).done == 0
+    env.cfg["output"]["path"] = ""
+    assert env.make().run(limit=10).done == 0
+    assert db.status_counts(env.conn)[db.NEW] == 3
+
+
+def test_newest_first(env):
+    sync(env)
+    env.cfg["youtube"]["newest_first"] = True
+    env.make().run(limit=1)
+    assert db.get_result(env.conn, "youtube:vid00000003", "en")
+
+
+def test_transcript_language_preference(env):
+    env.cfg["general"].update(summary_language="sv", ui_language="uk")
+    assert env.make()._transcript_languages() == ["en", "sv", "uk"]
+    env.cfg["youtube"]["languages"] = ["pt-BR", "pt"]
+    assert env.make()._transcript_languages() == ["pt"]
+
+
+def test_queue_eta(env):
+    sync(env)
+    assert pipeline.queue_eta_days(env.conn, 2) == 2

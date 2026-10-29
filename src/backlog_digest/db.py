@@ -74,6 +74,25 @@ MIGRATIONS: list[str] = [
         created_at   TEXT NOT NULL
     );
     """,
+    # 2 — конспект залежить і від мови конспекту; шлях нотатки зберігається в елемента
+    #     (той самий конспект у двох списках — дві нотатки). На етапі 1 results ще не заповнювалась.
+    """
+    DROP TABLE results;
+    CREATE TABLE results (
+        key             TEXT NOT NULL,
+        language        TEXT NOT NULL,            -- мова конспекту
+        source_language TEXT,                     -- мова субтитрів / тексту
+        model           TEXT,
+        tokens_in       INTEGER,
+        tokens_out      INTEGER,
+        score           INTEGER,
+        verdict         TEXT,                     -- watch / partial / summary_enough / skip
+        summary_json    TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        PRIMARY KEY (key, language)
+    );
+    ALTER TABLE items ADD COLUMN note_path TEXT;
+    """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -136,6 +155,34 @@ def list_sources(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
+def get_source(conn: sqlite3.Connection, source_id: int) -> dict[str, Any] | None:
+    return next((s for s in list_sources(conn) if s["id"] == source_id), None)
+
+
+def update_source(conn: sqlite3.Connection, source_id: int, **fields: Any) -> None:
+    if "settings" in fields:
+        fields["settings"] = json.dumps(fields["settings"], ensure_ascii=False)
+    assignments = ", ".join(f"{k}=?" for k in fields)
+    conn.execute(f"UPDATE sources SET {assignments} WHERE id=?", (*fields.values(), source_id))
+    conn.commit()
+
+
+def delete_source(conn: sqlite3.Connection, source_id: int) -> int:
+    """Видаляє джерело з його елементами (файли конспектів не чіпає). Повертає к-сть елементів."""
+    n = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source_id,)).fetchone()[0]
+    conn.execute("DELETE FROM sources WHERE id=?", (source_id,))
+    conn.commit()
+    return int(n)
+
+
+def queued_by_source(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Джерела, у яких є що обробляти: id, name, type, queued."""
+    return conn.execute(
+        "SELECT s.id, s.name, s.type, COUNT(i.id) AS queued FROM sources s "
+        "JOIN items i ON i.source_id = s.id AND i.status IN ('new', 'error') "
+        "GROUP BY s.id ORDER BY s.id").fetchall()
+
+
 # ---------------------------------------------------------------- елементи
 
 _ITEM_META = ("kind", "title", "author", "url", "path", "duration", "position")
@@ -168,8 +215,8 @@ def get_item(conn: sqlite3.Connection, item_id: int) -> sqlite3.Row | None:
 
 
 def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
-            list_name: str | None = None) -> list[sqlite3.Row]:
-    """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку."""
+            list_name: str | None = None, newest_first: bool = False) -> list[sqlite3.Row]:
+    """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку (або з кінця списку)."""
     sql = "SELECT * FROM items WHERE status IN (?, ?)"
     args: list[Any] = list(QUEUED)
     if source_id is not None:
@@ -178,7 +225,8 @@ def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
     if list_name is not None:
         sql += " AND list_name=?"
         args.append(list_name)
-    sql += " ORDER BY status = 'error', list_name, position, id LIMIT ?"
+    order = "DESC" if newest_first else "ASC"
+    sql += f" ORDER BY status = 'error', list_name, position {order}, id {order} LIMIT ?"
     args.append(limit)
     return conn.execute(sql, args).fetchall()
 
@@ -189,8 +237,8 @@ def _set(conn: sqlite3.Connection, item_id: int, **fields: Any) -> None:
     conn.commit()
 
 
-def mark_done(conn: sqlite3.Connection, item_id: int) -> None:
-    _set(conn, item_id, status=DONE, attempts=0, error=None, processed_at=now())
+def mark_done(conn: sqlite3.Connection, item_id: int, note_path: str | None = None) -> None:
+    _set(conn, item_id, status=DONE, attempts=0, error=None, processed_at=now(), note_path=note_path)
 
 
 def mark_no_text(conn: sqlite3.Connection, item_id: int, reason: str | None = None) -> None:
@@ -220,6 +268,38 @@ def retry_failed(conn: sqlite3.Connection, source_id: int | None = None) -> int:
     n = conn.execute(sql, args).rowcount
     conn.commit()
     return n
+
+
+def done_today(conn: sqlite3.Connection) -> int:
+    """Скільки елементів оброблено сьогодні (для добового ліміту)."""
+    today = datetime.now().date().isoformat()
+    row = conn.execute("SELECT COUNT(*) FROM items WHERE status=? AND substr(processed_at, 1, 10)=?",
+                       (DONE, today)).fetchone()
+    return int(row[0])
+
+
+def note_path_taken(conn: sqlite3.Connection, note_path: str, item_id: int) -> bool:
+    row = conn.execute("SELECT 1 FROM items WHERE lower(note_path)=lower(?) AND id<>? LIMIT 1",
+                       (note_path, item_id)).fetchone()
+    return row is not None
+
+
+# ---------------------------------------------------------------- конспекти
+
+def get_result(conn: sqlite3.Connection, key: str, language: str) -> sqlite3.Row | None:
+    row: sqlite3.Row | None = conn.execute(
+        "SELECT * FROM results WHERE key=? AND language=?", (key, language)).fetchone()
+    return row
+
+
+def save_result(conn: sqlite3.Connection, key: str, language: str, summary: dict[str, Any], *,
+                source_language: str | None, model: str, tokens_in: int, tokens_out: int) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO results (key, language, source_language, model, tokens_in, tokens_out, "
+        "score, verdict, summary_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (key, language, source_language, model, tokens_in, tokens_out, summary.get("score"),
+         summary.get("verdict"), json.dumps(summary, ensure_ascii=False), now()))
+    conn.commit()
 
 
 def status_counts(conn: sqlite3.Connection) -> dict[str, int]:

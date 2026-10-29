@@ -21,8 +21,11 @@ classifiers = [
     "Natural Language :: French",
     "Natural Language :: Spanish",
 ]
-# Етап 1 працює лише на стандартній бібліотеці Python.
-dependencies = []
+# Моделі — через вбудований HTTP Python (без пакета openai).
+dependencies = [
+    "yt-dlp>=2025.1.1",                 # списки відео з плейлистів і каналів
+    "youtube-transcript-api>=1.2,<2",   # субтитри
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
@@ -51,3 +54,7 @@ python_version = "3.11"
 files = ["src/backlog_digest"]
 warn_unused_ignores = true
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["yt_dlp", "yt_dlp.*"]
+ignore_missing_imports = true

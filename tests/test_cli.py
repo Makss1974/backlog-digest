@@ -73,3 +73,28 @@ def test_help_is_translated(capsys, lang):
         cli.main(["--lang", lang, "--help"])
     out = capsys.readouterr().out
     assert {"uk": "перевірити", "fr": "vérifier"}[lang] in out
+
+
+def test_add_sync_process_commands(paths, monkeypatch, capsys, tmp_path):
+    from backlog_digest import pipeline, youtube
+
+    listing = youtube.Listing("L", [youtube.Entry("aaaaaaaaaaa", "A")])
+    monkeypatch.setattr(youtube, "list_url", lambda url, cookies=None: listing)
+    assert cli.main(["add", "https://www.youtube.com/@x", "--name", "X", "--no-sync"]) == 0
+    assert cli.main(["add", "https://www.youtube.com/@y", "--name", "X"]) == 2      # назва зайнята
+    assert cli.main(["sync"]) == 0
+    assert "1" in capsys.readouterr().out
+    runs = []
+
+    class FakeProcessor:
+        def __init__(self, conn, cfg, paths):
+            pass
+
+        def run(self, limit, source_id):
+            runs.append((limit, source_id))
+            return pipeline.RunStats(stopped="quota" if source_id else "")
+
+    monkeypatch.setattr(pipeline, "Processor", FakeProcessor)
+    assert cli.main(["process"]) == 0
+    assert cli.main(["process", "--limit", "5", "--source", "1"]) == 3
+    assert runs == [(30, None), (5, 1)]

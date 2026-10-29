@@ -29,7 +29,7 @@ def test_report_in_every_language(paths, lang, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "doctor." not in out and "plural." not in out   # жодного неперекладеного ключа
-    assert i18n.tn("plural.doctor_warns", 2) in out   # немає config.toml і ключа моделі
+    assert i18n.tn("plural.doctor_warns", 3) in out   # немає config.toml, теки конспектів і ключа моделі
 
 
 def test_fresh_install_warns_about_config_and_keys(paths):

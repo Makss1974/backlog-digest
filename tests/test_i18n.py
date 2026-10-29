@@ -96,7 +96,7 @@ def test_language_names_are_endonyms():
 
 # ---------------------------------------------------------------- без хардкоду
 
-OUTPUT_CALLS = {"print", "input", "ask", "ask_int", "ask_yes"}
+OUTPUT_CALLS = {"print", "input", "ask", "ask_int", "ask_yes", "log"}
 WORD = re.compile(r"[^\W\d_]{2,}")
 
 

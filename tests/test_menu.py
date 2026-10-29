@@ -42,15 +42,15 @@ def make_menu(paths):
 @pytest.mark.parametrize("lang", i18n.UI_LANGUAGES)
 def test_menu_in_every_language(make_menu, monkeypatch, capsys, lang):
     monkeypatch.setattr(doctor, "run", lambda paths, network=True: print("DOCTOR-RAN"))
-    feed(monkeypatch, ["1", "", "2", "", "7", "", "42", "q"])
+    feed(monkeypatch, ["1", "", "2", "0", "", "4", "", "7", "", "42", "q"])
     make_menu(lang).run()
     out = capsys.readouterr().out
     for key in ("menu.stats", "menu.settings", "menu.quit", "menu.queue_empty", "stats.no_sources",
-                "status.no_text", "menu.no_such_item"):
+                "status.no_text", "menu.no_such_item", "sources.none", "sources.add_youtube"):
         assert i18n.t(key) in out, key
-    assert i18n.t("menu.coming_soon", stage=2) in out
+    assert i18n.t("menu.coming_soon", stage=4) in out
     assert "DOCTOR-RAN" in out
-    assert not re.search(r"(menu|stats|status|settings)\.[a-z_]+", out), "untranslated key"
+    assert not re.search(r"\b(menu|stats|status|settings|sources|process)\.[a-z_]+", out), "untranslated key"
 
 
 @pytest.mark.parametrize("quit_key", ["q", "Q", "й"])
@@ -97,7 +97,7 @@ def test_invalid_summary_language_is_rejected(make_menu, monkeypatch, capsys, pa
 
 
 def test_show_paths(make_menu, monkeypatch, capsys, paths):
-    feed(monkeypatch, ["8", "3", "0", "", "q"])
+    feed(monkeypatch, ["8", "5", "0", "", "q"])
     make_menu().run()
     assert str(paths.env_file) in capsys.readouterr().out
 
@@ -123,3 +123,89 @@ def test_pick_summary_language_from_list(make_menu, monkeypatch, capsys, paths):
     assert config.load(paths)["general"]["summary_language"] == "sv"
     out = capsys.readouterr().out
     assert "Svenska (sv)" in out and "Čeština (cs)" in out
+
+
+@pytest.fixture
+def fake_youtube(monkeypatch):
+    from backlog_digest import youtube
+
+    listing = youtube.Listing("My list", [youtube.Entry("aaaaaaaaaaa", "Video A", "Chan", 60)])
+    monkeypatch.setattr(youtube, "list_url", lambda url, cookies=None: listing)
+    monkeypatch.setattr(youtube, "fetch_transcript",
+                        lambda vid, langs: youtube.Transcript("[00:00] text", "en", False))
+
+
+def test_add_youtube_source_from_menu(make_menu, monkeypatch, capsys, fake_youtube):
+    # 2 — джерела, 1 — додати, посилання, порожній рядок, назва за замовчуванням, тека «Відео»
+    feed(monkeypatch, ["2", "1", "https://www.youtube.com/playlist?list=PL1", "", "", "Відео", "0", "", "q"])
+    m = make_menu()
+    m.run()
+    [s] = db.list_sources(m.conn)
+    assert (s["name"], s["output_dir"], s["settings"]["urls"]) == (
+        "YouTube", "Відео", ["https://www.youtube.com/playlist?list=PL1"])
+    assert db.status_counts(m.conn)[db.NEW] == 1
+    assert i18n.t("sources.synced", new=1) in capsys.readouterr().out
+
+
+def test_delete_source_from_menu(make_menu, monkeypatch):
+    m = make_menu()
+    sid = db.add_source(m.conn, "youtube", "Old")
+    db.upsert_item(m.conn, sid, "k")
+    feed(monkeypatch, ["2", "3", "1", "yes", "0", "", "q"])
+    m.run()
+    assert db.list_sources(m.conn) == []
+
+
+def test_process_from_menu_asks_for_output_folder(make_menu, monkeypatch, capsys, paths, tmp_path, fake_youtube):
+    from backlog_digest import llm, pipeline
+
+    class Chain:
+        slots = [1]
+
+        def active(self):
+            return ["fake/m"]
+
+        def complete(self, system, user, **kw):
+            return llm.LLMResult('{"about": "A", "key_points": ["k"], "score": 4, "verdict": "watch"}', "fake/m")
+
+    monkeypatch.setattr(pipeline.Chain, "from_config", classmethod(lambda cls, cfg, paths, log=print: Chain()))
+    m = make_menu()
+    pipeline.add_youtube_source(m.conn, "YouTube", ["x"], "Video")
+    pipeline.sync_all(m.conn)
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    feed(monkeypatch, ["3", str(vault), "5", "", "q"])
+    m.run()
+    assert config.load(paths)["output"] == {"kind": "obsidian", "path": str(vault)}
+    assert (vault / "Video" / "My list" / "Video A.md").exists()
+
+
+def test_model_key_is_checked_and_saved(make_menu, monkeypatch, capsys, paths):
+    from backlog_digest import keys, llm
+
+    monkeypatch.setattr(menu.getpass, "getpass", lambda prompt="": " sk-test ")
+    monkeypatch.setattr(llm, "check_key", lambda provider, key: (key == "sk-test", ""))
+    m = make_menu()
+    m.cfg["models"]["order"] = ["gemini"]
+    feed(monkeypatch, ["8", "4", "3", "0", "", "q"])     # 3 — DeepSeek
+    m.run()
+    assert keys.get_secret("DEEPSEEK_API_KEY", paths) == "sk-test"
+    assert config.load(paths)["models"]["order"] == ["gemini", "deepseek"]
+    assert i18n.t("settings.key_ok") in capsys.readouterr().out
+    assert "sk-test" not in paths.config_file.read_text(encoding="utf-8")
+
+
+def test_bad_model_key_is_not_saved_unless_confirmed(make_menu, monkeypatch, paths):
+    from backlog_digest import keys, llm
+
+    monkeypatch.setattr(menu.getpass, "getpass", lambda prompt="": "wrong")
+    monkeypatch.setattr(llm, "check_key", lambda provider, key: (False, "API key not valid"))
+    feed(monkeypatch, ["8", "4", "1", "n", "0", "", "q"])
+    make_menu().run()
+    assert keys.get_secret("GEMINI_API_KEY", paths) is None
+
+
+def test_relative_output_path_is_rejected(make_menu, monkeypatch, paths):
+    feed(monkeypatch, ["8", "3", "relative/folder", "0", "", "q"])
+    make_menu().run()
+    assert not paths.config_file.exists()
