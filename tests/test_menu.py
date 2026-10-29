@@ -174,7 +174,7 @@ def test_process_from_menu_asks_for_output_folder(make_menu, monkeypatch, capsys
     pipeline.sync_all(m.conn)
     vault = tmp_path / "vault"
     (vault / ".obsidian").mkdir(parents=True)
-    feed(monkeypatch, ["3", str(vault), "5", "", "q"])
+    feed(monkeypatch, ["3", "", str(vault), "5", "", "q"])   # "" — режим за замовчуванням: усе разом
     m.run()
     assert config.load(paths)["output"] == {"kind": "obsidian", "path": str(vault)}
     assert (vault / "Video" / "My list" / "Video A.md").exists()

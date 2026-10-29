@@ -90,11 +90,13 @@ def test_add_sync_process_commands(paths, monkeypatch, capsys, tmp_path):
         def __init__(self, conn, cfg, paths):
             pass
 
-        def run(self, limit, source_id):
-            runs.append((limit, source_id))
+        def run(self, limit, source_id, stage):
+            runs.append((limit, source_id, stage))
             return pipeline.RunStats(stopped="quota" if source_id else "")
 
     monkeypatch.setattr(pipeline, "Processor", FakeProcessor)
     assert cli.main(["process"]) == 0
     assert cli.main(["process", "--limit", "5", "--source", "1"]) == 3
-    assert runs == [(30, None), (5, 1)]
+    assert cli.main(["fetch", "--limit", "7"]) == 0
+    assert cli.main(["summarize"]) == 0
+    assert runs == [(30, None, "all"), (5, 1, "all"), (7, None, "fetch"), (30, None, "summarize")]

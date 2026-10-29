@@ -186,4 +186,76 @@ def test_transcript_language_preference(env):
 
 def test_queue_eta(env):
     sync(env)
-    assert pipeline.queue_eta_days(env.conn, 2) == 2
+    assert pipeline.queue_eta_days(env.conn, 2, "en") == 2
+
+
+# ---------------------------------------------------------------- два кроки: збір текстів і конспекти
+
+def test_fetch_only_needs_no_models_or_output(env):
+    sync(env)
+    env.cfg["output"]["path"] = ""
+    chain = FakeChain(exhausted=True)
+    stats = env.make(chain).run(limit=10, stage=pipeline.FETCH)
+    assert (stats.fetched, stats.done, chain.calls) == (3, 0, [])
+    assert db.get_transcript(env.conn, "youtube:vid00000001")["text"] == "[00:00] text of vid00000001"
+    assert db.status_counts(env.conn)[db.NEW] == 3          # конспектів ще немає — елементи в черзі
+    assert db.stage_counts(env.conn, "en") == (0, 3)
+    assert env.make().run(limit=10, stage=pipeline.FETCH).fetched == 0   # повторно не збирає
+
+
+def test_summarize_only_uses_stored_text_without_youtube(env, monkeypatch):
+    sync(env)
+    env.make().run(limit=2, stage=pipeline.FETCH)
+
+    def no_youtube(vid, langs):
+        raise AssertionError("YouTube must not be called")
+
+    monkeypatch.setattr(youtube, "fetch_transcript", no_youtube)
+    proc = env.make()
+    stats = proc.run(limit=10, stage=pipeline.SUMMARIZE)
+    assert (stats.done, stats.fetched, proc.sleeps) == (2, 0, [])
+    assert db.stage_counts(env.conn, "en") == (1, 0)          # третє відео ще чекає субтитрів
+
+
+def test_fetch_daily_limit_counts_youtube_requests(env):
+    sync(env)
+    env.cfg["limits"]["per_day"] = 2
+    env.transcripts["vid00000001"] = None                     # «немає субтитрів» — теж запит до YouTube
+    stats = env.make().run(limit=10, stage=pipeline.FETCH)
+    assert (stats.fetched, stats.no_text) == (1, 1)
+    assert env.make().run(limit=10, stage=pipeline.FETCH).fetched == 0
+    assert any("limits.per_day" in line for line in env.logs)
+    stats = env.make().run(limit=10)                          # усе разом: конспекти із зібраного — можна
+    assert stats.done == 1
+
+
+def test_blocked_youtube_still_summarizes_stored_text(env, monkeypatch):
+    sync(env)
+    env.make().run(limit=1, stage=pipeline.FETCH)
+
+    def blocked(vid, langs):
+        raise youtube.BlockedError("HTTP 429")
+
+    monkeypatch.setattr(youtube, "fetch_transcript", blocked)
+    env.cfg["youtube"]["newest_first"] = True                  # спершу трапиться відео без субтитрів
+    stats = env.make().run(limit=10)
+    assert (stats.stopped, stats.done, stats.errors) == ("blocked", 1, 0)
+    assert db.stage_counts(env.conn, "en") == (2, 0)
+
+
+def test_quota_keeps_collecting_subtitles(env):
+    sync(env)
+    stats = env.make(FakeChain([llm.QuotaExhausted("all")])).run(limit=10)
+    assert (stats.stopped, stats.done, stats.fetched) == ("quota", 0, 3)
+    assert db.stage_counts(env.conn, "en") == (0, 3)
+
+
+def test_known_missing_subtitles_apply_to_the_same_video_elsewhere(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.make().run(limit=10, stage=pipeline.FETCH)
+    sid2 = pipeline.add_youtube_source(env.conn, "Other", ["x"], "Other")
+    pipeline.sync_source(env.conn, db.get_source(env.conn, sid2), env.logs.append)
+    assert db.stage_counts(env.conn, "en") == (0, 5)
+    stats = env.make().run(limit=10, stage=pipeline.SUMMARIZE)
+    assert (stats.done, stats.reused, stats.no_text) == (2, 2, 1)

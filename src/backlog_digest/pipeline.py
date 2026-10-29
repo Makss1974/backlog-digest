@@ -1,4 +1,4 @@
-"""Конвеєр: оновлення списків джерел (sync) і обробка черги (process).
+"""Конвеєр: оновлення списків джерел (sync) і обробка черги: збір текстів (fetch) і конспекти (summarize).
 
 Ніколи не губимо прогрес: кожен елемент зберігається одразу, тож будь-яку зупинку
 (Ctrl+C, вичерпаний ліміт моделей, блокування YouTube) можна просто продовжити наступним запуском.
@@ -18,6 +18,8 @@ from . import db, notes, summarize, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
 from .paths import Paths
+
+ALL, FETCH, SUMMARIZE = db.ALL, db.FETCH, db.SUMMARIZE
 
 YOUTUBE = "youtube"
 SOURCE_TYPES = (YOUTUBE,)
@@ -72,6 +74,7 @@ class RunStats:
     no_text: int = 0
     errors: int = 0
     tokens: int = 0
+    fetched: int = 0    # зібрано текстів
     stopped: str = ""   # чому зупинились раніше: blocked / quota / ""
 
 
@@ -89,6 +92,8 @@ class Processor:
         self.sources = {s["id"]: s for s in db.list_sources(conn)}
         self._labels: dict[str, str] | None = None
         self._fetched_before = False
+        self._fetching = self._summarizing = True
+        self._fetch_left = 0
 
     # -- підготовка
 
@@ -114,39 +119,69 @@ class Processor:
 
     # -- головний цикл
 
-    def run(self, limit: int, source_id: int | None = None) -> RunStats:
+    def run(self, limit: int, source_id: int | None = None, stage: str = ALL) -> RunStats:
+        """Обробка черги. stage: fetch — лише зібрати тексти (повільно, з вашої IP, моделі не потрібні);
+        summarize — лише конспекти з уже зібраного (YouTube не потрібен); all — обидва кроки поспіль.
+        У режимі all блокування YouTube не зупиняє конспекти з уже зібраного, а вичерпані моделі — збір."""
         stats = RunStats()
-        if not self.check_ready():
+        self._fetching = stage != SUMMARIZE
+        self._summarizing = stage != FETCH
+        if self._summarizing and not self.check_ready():
             return stats
-        left_today = self.cfg["limits"]["per_day"] - db.done_today(self.conn)
-        if left_today <= 0:
-            self.log(t("process.daily_limit", limit=self.cfg["limits"]["per_day"]))
-            return stats
-        rows = db.pending(self.conn, min(limit, left_today), source_id,
-                          newest_first=bool(self.cfg["youtube"]["newest_first"]))
+        per_day = self.cfg["limits"]["per_day"]
+        self._fetch_left = per_day - db.fetched_today(self.conn)   # добовий ліміт — лише на запити до YouTube
+        if self._fetching and self._fetch_left <= 0:
+            self.log(t("process.daily_limit", limit=per_day))
+            if stage == FETCH:
+                return stats
+            self._fetching = False
+            stage = SUMMARIZE
+        rows = db.pending(self.conn, min(limit, self._fetch_left) if stage == FETCH else limit, source_id,
+                          newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
+                          language=self.language)
         if not rows:
             self.log(t("process.nothing"))
             return stats
-        self.log(t("process.start", n=len(rows), models=", ".join(self.chain.active()[:3])))
+        self.log(t("process.start_fetch", n=len(rows)) if stage == FETCH else
+                 t("process.start", n=len(rows), models=", ".join(self.chain.active()[:3])))
+        limit_logged = False
         for i, row in enumerate(rows, 1):
+            if not (self._fetching or self._summarizing):
+                break
             item = dict(row)
+            text = db.get_transcript(self.conn, item["key"])
+            saved = db.get_result(self.conn, item["key"], self.language) if self._summarizing else None
+            needs_fetch = item["kind"] == "video" and text is None and saved is None
+            if needs_fetch and not self._fetching:   # тексту ще немає, а звертатися до YouTube зараз не можна
+                if self._fetch_left <= 0 and not limit_logged:
+                    self.log("\n" + t("process.daily_limit", limit=per_day))
+                    limit_logged = True
+                continue
+            if not needs_fetch and not self._summarizing:   # той самий ролик в іншому списку — уже зібрано
+                continue
             self.log(f"\n[{i}/{len(rows)}] {item['title']}  ({item['list_name']})")
             try:
-                self._process(item, stats)
+                self._process(item, text, saved, stats)
             except youtube.BlockedError as e:
                 self.log(t("process.blocked", detail=str(e)))
                 stats.stopped = "blocked"
-                break
+                self._fetching = False
             except QuotaExhausted:
                 self.log(t("process.quota"))
                 stats.stopped = "quota"
-                break
-        self.log("\n" + t("process.summary", done=stats.done, reused=stats.reused, no_text=stats.no_text,
-                                  errors=stats.errors, tokens=stats.tokens))
+                self._summarizing = False
+        if stage == FETCH:
+            self.log("\n" + t("process.fetch_summary", fetched=stats.fetched, no_text=stats.no_text,
+                                      errors=stats.errors))
+        else:
+            self.log("\n" + t("process.summary", done=stats.done, reused=stats.reused, no_text=stats.no_text,
+                                      errors=stats.errors, tokens=stats.tokens))
+            if stats.fetched:
+                self.log(t("process.fetched_line", n=stats.fetched))
         return stats
 
-    def _process(self, item: dict[str, Any], stats: RunStats) -> None:
-        saved = db.get_result(self.conn, item["key"], self.language)
+    def _process(self, item: dict[str, Any], text: sqlite3.Row | None, saved: sqlite3.Row | None,
+                 stats: RunStats) -> None:
         if saved:   # той самий елемент уже конспектовано в іншому списку чи джерелі — без моделі
             self._write(item, json.loads(saved["summary_json"]))
             stats.reused += 1
@@ -156,23 +191,48 @@ class Processor:
         if item["kind"] != "video":
             self._error(item, stats, t("process.unsupported", kind=item["kind"]))
             return
-        vid = item["key"].removeprefix("youtube:")
+        if text is None:
+            tr = self._fetch(item, stats)
+            if tr is None:
+                return
+        elif text["text"] is None:   # уже з'ясовано, що субтитрів немає (те саме відео в іншому списку)
+            self._no_text(item, stats)
+            return
+        else:
+            tr = youtube.Transcript(text["text"], text["language"] or "", bool(text["generated"]))
+            self.log("  " + t("process.stored", lang=tr.language, chars=len(tr.text)))
+        if self._summarizing:
+            self._summarize(item, tr, stats)
+
+    def _fetch(self, item: dict[str, Any], stats: RunStats) -> youtube.Transcript | None:
+        """Збирає субтитри й одразу зберігає їх у базі. None — тексту немає або помилка (вже враховано)."""
         self._pause()
         try:
-            tr = youtube.fetch_transcript(vid, self._transcript_languages())
+            tr = youtube.fetch_transcript(item["key"].removeprefix("youtube:"), self._transcript_languages())
         except youtube.BlockedError:
             raise
         except Exception as e:  # будь-яка інша помилка субтитрів — це помилка елемента, не всього запуску
             self._error(item, stats, t("process.transcript_error", detail=short(str(e), 200)))
-            return
+            return None
+        self._fetch_left -= 1
+        if self._fetch_left <= 0:
+            self._fetching = False
         if tr is None:
-            db.mark_no_text(self.conn, item["id"], "no subtitles")
-            stats.no_text += 1
-            self.log("  " + t("process.no_subtitles"))
-            return
+            db.save_transcript(self.conn, item["key"], None)
+            self._no_text(item, stats)
+            return None
+        db.save_transcript(self.conn, item["key"], tr.text, tr.language, tr.generated)
+        stats.fetched += 1
         self.log("  " + t("process.subtitles", lang=tr.language, chars=len(tr.text),
                           auto=t("process.auto") if tr.generated else ""))
+        return tr
 
+    def _no_text(self, item: dict[str, Any], stats: RunStats) -> None:
+        db.mark_no_text(self.conn, item["id"], "no subtitles")
+        stats.no_text += 1
+        self.log("  " + t("process.no_subtitles"))
+
+    def _summarize(self, item: dict[str, Any], tr: youtube.Transcript, stats: RunStats) -> None:
         system = summarize.system_prompt(self.language)
         user = summarize.user_prompt(item["title"] or "", item["author"] or "",
                                      youtube.format_duration(item["duration"]), tr.text, tr.language,
@@ -247,7 +307,8 @@ class Processor:
         return mode == "deep" or (mode == "auto" and length > 60000)
 
 
-def queue_eta_days(conn: sqlite3.Connection, per_day: int) -> int:
-    queued = sum(db.status_counts(conn)[s] for s in db.QUEUED)
-    return -(-queued // per_day) if queued else 0
+def queue_eta_days(conn: sqlite3.Connection, per_day: int, language: str) -> int:
+    """Скільки днів ще збирати тексти при добовому ліміті (конспекти швидші — їх не рахуємо)."""
+    to_fetch = db.stage_counts(conn, language)[0]
+    return -(-to_fetch // per_day) if to_fetch else 0
 

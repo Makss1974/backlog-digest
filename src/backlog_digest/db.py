@@ -3,6 +3,7 @@
 Модель даних (спільна для всіх типів джерел):
   sources  — джерело: YouTube, папка, веб-статті, Raindrop, Telegram...
   items    — елемент джерела у конкретному «списку» (плейлист / підпапка / канал / колекція)
+  transcripts — зібраний текст (субтитри) за ключем елемента; збирається окремим кроком
   results  — конспект; один на ключ елемента, тож те саме відео з YouTube і з Telegram
              (однаковий ключ, напр. youtube:<id>) конспектується один раз
 
@@ -92,6 +93,17 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (key, language)
     );
     ALTER TABLE items ADD COLUMN note_path TEXT;
+    """,
+    # 3 — тексти (субтитри) зберігаються окремо від конспектів: збирати їх і конспектувати можна
+    #     в різний час (YouTube обмежує запити з IP, моделі — денні ліміти)
+    """
+    CREATE TABLE transcripts (
+        key        TEXT PRIMARY KEY,
+        language   TEXT,
+        generated  INTEGER NOT NULL DEFAULT 0,    -- 1 — автоматичні субтитри
+        text       TEXT,                          -- NULL — тексту немає (немає субтитрів)
+        fetched_at TEXT NOT NULL
+    );
     """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
@@ -214,11 +226,28 @@ def get_item(conn: sqlite3.Connection, item_id: int) -> sqlite3.Row | None:
     return row
 
 
+ALL, FETCH, SUMMARIZE = "all", "fetch", "summarize"
+
+
+def _stage_filter(stage: str, language: str) -> tuple[str, list[Any]]:
+    """Умова для кроку обробки. fetch — відео, для яких ще не зібрано текст і немає конспекту;
+    summarize — ті, для яких текст уже є (або конспект з іншого списку, або це не відео)."""
+    has_text = "key IN (SELECT key FROM transcripts)"
+    has_result = "key IN (SELECT key FROM results WHERE language=?)"
+    if stage == FETCH:
+        return f" AND kind='video' AND NOT {has_text} AND NOT {has_result}", [language]
+    if stage == SUMMARIZE:
+        return f" AND (kind<>'video' OR {has_text} OR {has_result})", [language]
+    return "", []
+
+
 def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
-            list_name: str | None = None, newest_first: bool = False) -> list[sqlite3.Row]:
+            list_name: str | None = None, newest_first: bool = False, stage: str = ALL,
+            language: str = "") -> list[sqlite3.Row]:
     """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку (або з кінця списку)."""
-    sql = "SELECT * FROM items WHERE status IN (?, ?)"
-    args: list[Any] = list(QUEUED)
+    where, args = _stage_filter(stage, language)
+    sql = "SELECT * FROM items WHERE status IN (?, ?)" + where
+    args = [*QUEUED, *args]
     if source_id is not None:
         sql += " AND source_id=?"
         args.append(source_id)
@@ -270,18 +299,42 @@ def retry_failed(conn: sqlite3.Connection, source_id: int | None = None) -> int:
     return n
 
 
-def done_today(conn: sqlite3.Connection) -> int:
-    """Скільки елементів оброблено сьогодні (для добового ліміту)."""
-    today = datetime.now().date().isoformat()
-    row = conn.execute("SELECT COUNT(*) FROM items WHERE status=? AND substr(processed_at, 1, 10)=?",
-                       (DONE, today)).fetchone()
-    return int(row[0])
+def stage_counts(conn: sqlite3.Connection, language: str) -> tuple[int, int]:
+    """Скільки елементів у черзі чекає (тексту, конспекту)."""
+    out = []
+    for stage in (FETCH, SUMMARIZE):
+        where, args = _stage_filter(stage, language)
+        out.append(int(conn.execute("SELECT COUNT(*) FROM items WHERE status IN (?, ?)" + where,
+                                    [*QUEUED, *args]).fetchone()[0]))
+    return out[0], out[1]
 
 
 def note_path_taken(conn: sqlite3.Connection, note_path: str, item_id: int) -> bool:
     row = conn.execute("SELECT 1 FROM items WHERE lower(note_path)=lower(?) AND id<>? LIMIT 1",
                        (note_path, item_id)).fetchone()
     return row is not None
+
+
+# ---------------------------------------------------------------- тексти
+
+def save_transcript(conn: sqlite3.Connection, key: str, text: str | None, language: str | None = None,
+                    generated: bool = False) -> None:
+    """Зберігає зібраний текст. text=None — тексту немає (теж запам'ятовуємо, щоб не питати знову)."""
+    conn.execute("INSERT OR REPLACE INTO transcripts (key, language, generated, text, fetched_at) "
+                 "VALUES (?, ?, ?, ?, ?)", (key, language, int(generated), text, now()))
+    conn.commit()
+
+
+def get_transcript(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+    row: sqlite3.Row | None = conn.execute("SELECT * FROM transcripts WHERE key=?", (key,)).fetchone()
+    return row
+
+
+def fetched_today(conn: sqlite3.Connection) -> int:
+    """Скільки текстів зібрано сьогодні (для добового ліміту запитів до YouTube)."""
+    today = datetime.now().date().isoformat()
+    row = conn.execute("SELECT COUNT(*) FROM transcripts WHERE substr(fetched_at, 1, 10)=?", (today,)).fetchone()
+    return int(row[0])
 
 
 # ---------------------------------------------------------------- конспекти

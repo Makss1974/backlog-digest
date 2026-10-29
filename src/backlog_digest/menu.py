@@ -84,10 +84,15 @@ class Menu:
         print(f"  {pair(t('stats.items'), sum(counts.values()))}")
         for status in db.STATUSES:
             print(f"    {pair(t(f'status.{status}'), counts[status])}")
-        queued = sum(counts[s] for s in db.QUEUED)
-        if queued:
+        language = self.cfg["general"]["summary_language"]
+        to_fetch, to_summarize = db.stage_counts(self.conn, language)
+        if to_fetch or to_summarize:
+            print(f"\n  {pair(t('stats.to_fetch'), to_fetch)}")
+            print(f"  {pair(t('stats.to_summarize'), to_summarize)}")
+        if to_fetch:
             per_day = self.cfg["limits"]["per_day"]
-            print(f"\n{t('stats.eta', days=pipeline.queue_eta_days(self.conn, per_day), per_day=per_day)}")
+            days = pipeline.queue_eta_days(self.conn, per_day, language)
+            print(f"\n{t('stats.eta', days=days, per_day=per_day)}")
         if not sources:
             print(f"\n{t('stats.no_sources')}")
 
@@ -158,11 +163,21 @@ class Menu:
     # ------------------------------------------------------------ конспекти
 
     def process(self) -> None:
-        if not self.cfg["output"]["path"] and not self.choose_output():
-            return
+        to_fetch, to_summarize = db.stage_counts(self.conn, self.cfg["general"]["summary_language"])
         queued = db.queued_by_source(self.conn)
         if not queued:
             print(t("process.empty_queue"))
+            return
+        print(t("process.waiting", to_fetch=to_fetch, to_summarize=to_summarize))
+        print(f"  1. {t('process.mode_all')}")
+        print(f"  2. {t('process.mode_fetch')}")
+        print(f"  3. {t('process.mode_summarize')}")
+        print(f"  0. {t('menu.back')}")
+        mode = ask_int(t("settings.choose"), 1, 0, 3)
+        if not mode:
+            return
+        stage = (pipeline.ALL, pipeline.FETCH, pipeline.SUMMARIZE)[mode - 1]
+        if stage != pipeline.FETCH and not self.cfg["output"]["path"] and not self.choose_output():
             return
         source_id = None
         if len(queued) > 1:
@@ -172,8 +187,8 @@ class Menu:
             n = ask_int(t("settings.choose"), 0, 0, len(queued))
             source_id = queued[n - 1]["id"] if n else None
         limit = ask_int(t("process.how_many"), self.cfg["limits"]["per_run"], 1, 100000)
-        print(t("process.hint_stop") + "\n")
-        pipeline.Processor(self.conn, self.cfg, self.paths).run(limit, source_id)
+        print(t("process.hint_stop_short" if stage == pipeline.SUMMARIZE else "process.hint_stop") + "\n")
+        pipeline.Processor(self.conn, self.cfg, self.paths).run(limit, source_id, stage)
 
     # ------------------------------------------------------------ налаштування
 

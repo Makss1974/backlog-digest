@@ -1,4 +1,5 @@
-"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [menu | doctor | add | sync | process]."""
+"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es]
+[menu | doctor | add | sync | process | fetch | summarize]."""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +9,9 @@ from typing import Any
 from . import __version__, config, db, doctor, i18n
 from .i18n import t
 from .paths import get_paths
+
+# команда → крок обробки: process — обидва кроки, fetch — лише тексти, summarize — лише конспекти
+STAGES = {"process": db.ALL, "fetch": db.FETCH, "summarize": db.SUMMARIZE}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,9 +77,9 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
     if args.command == "sync":
         print(t("sources.synced", new=pipeline.sync_all(conn)))
         return 0
-    if args.command == "process":
+    if args.command in STAGES:
         limit = args.limit or cfg["limits"]["per_run"]
-        stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source)
+        stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
         return 3 if stats.stopped else 0
     Menu(paths, cfg, conn).run()
     return 0
@@ -95,9 +99,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--folder", help=t("cli.help_folder"))
     p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
     sub.add_parser("sync", help=t("cli.help_sync"))
-    p = sub.add_parser("process", help=t("cli.help_process"))
-    p.add_argument("--limit", type=int, help=t("cli.help_limit"))
-    p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))
+    for command in STAGES:
+        p = sub.add_parser(command, help=t(f"cli.help_{command}"))
+        p.add_argument("--limit", type=int, help=t("cli.help_limit"))
+        p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))
     return parser
 
 
