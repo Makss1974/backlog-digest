@@ -105,8 +105,13 @@ def read_links(path: Path) -> list[Link]:
     seen: set[str] = set()
     out = []
     for link in links:   # той самий URL двічі — лише перший
-        key = normalize(link.url)
-        if is_url(link.url) and key not in seen:
+        if not is_url(link.url):
+            continue
+        try:
+            key = normalize(link.url)
+        except ValueError:   # зіпсована адреса (напр. «http://[сміття]/») — пропускаємо, а не падаємо
+            continue
+        if key not in seen:
             seen.add(key)
             out.append(link)
     return out
@@ -169,6 +174,11 @@ def _bookmarks(html: str) -> list[Link]:
         first, _, rest = link.list_name.partition("/")
         if first.lower() in toolbar:
             link.list_name = rest
+    # одна тека-обгортка навколо всього (напр. «!Tabsbook Export») — теж не тема
+    roots = {link.list_name.partition("/")[0] for link in links}
+    if len(links) > 1 and len(roots) == 1 and "" not in roots:
+        for link in links:
+            link.list_name = link.list_name.partition("/")[2]
     return links
 
 

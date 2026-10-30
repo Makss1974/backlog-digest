@@ -103,3 +103,18 @@ def test_http_errors(monkeypatch):
     monkeypatch.setattr(web.urllib.request, "urlopen", fail(503))
     with pytest.raises(web.FetchError):
         web.fetch_article("https://example.com/busy")
+
+
+def test_wrapper_folder_and_broken_links_in_bookmarks(tmp_path):
+    path = tmp_path / "tabsbook.html"
+    path.write_text("""<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p><DT><H3>!Tabsbook Export</H3><DL><p>
+  <DT><A HREF="https://example.com/top">Top</A>
+  <DT><H3>База 1</H3><DL><p>
+    <DT><A HREF="http://[not-an-ip]/x">Broken</A>
+    <DT><A HREF="https://example.com/a">A</A>
+  </DL><p>
+</DL><p></DL><p>
+""", encoding="utf-8")
+    links = web.read_links(path)   # зіпсоване посилання пропущено, обгортку прибрано
+    assert [(lk.title, lk.list_name) for lk in links] == [("Top", ""), ("A", "База 1")]
