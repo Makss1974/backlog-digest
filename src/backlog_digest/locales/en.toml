@@ -153,6 +153,12 @@ add_folder = "Add a folder with books and documents"
 folder_help = "A folder on disk (a synced one works too: Google Drive, OneDrive, Dropbox). First-level subfolders become separate lists.\nFormats: PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU with DjVuLibre; MOBI, AZW3, DOC with Calibre."
 folder_not_found = "No such folder (a full path is needed): {path}"
 added_folder = "Source \"{name}\" added. Looking for files..."
+type_web = "articles"
+add_web = "Add articles: links, browser bookmarks, Pocket, Instapaper"
+web_help = "Paste, one per line: article links or the full path to a file —\nbrowser bookmarks (HTML export), a Pocket export (HTML/CSV), Instapaper (CSV), or a TXT list of links.\nBookmark folders become lists; YouTube links become videos. Empty line — done."
+not_link_or_file = "Skipping — not a link and not a file: {value}"
+web_default_name = "Articles"
+added_web = "Source \"{name}\" added. Collecting links..."
 
 [sync]
 source = "Source \"{name}\":"
@@ -160,6 +166,7 @@ list_done = "  {name}: {total} in the list, {new} new"
 list_error = "  ✗ could not get the list {url}: {detail}"
 folder_missing = "  ✗ the folder is missing or unavailable: {path}"
 folder_empty = "  no books or documents in supported formats in the folder: {path}"
+file_error = "  ✗ could not read the file {path}: {detail}"
 
 [process]
 empty_queue = "The queue is empty. Add a source or update the lists (item 2)."
@@ -201,6 +208,7 @@ text = "text: {format}, {chars} characters"
 parts = "parts: {n}"
 part = "part {n}/{total}..."
 part_cached = "part {n}/{total} — already done"
+web_error = "could not load the page: {detail}"
 
 [llm]
 quota = "  [model] {model}: quota used up — switching to the next one"
@@ -235,6 +243,7 @@ evidence_unscientific = "unscientific"
 open_file = "Open the file"
 verdict_read = "Read it"
 verdict_read_partial = "Read part of it"
+open_article = "Open the article"
 
 [read]
 unsupported = "the {ext} format is not supported"
@@ -246,6 +255,13 @@ need_calibre = "MOBI, AZW3 and DOC need the free program Calibre (calibre-ebook.
 tool_failed = "{tool} could not read the file: {detail}"
 encrypted = "the PDF is password-protected"
 no_fb2_in_zip = "there is no .fb2 file in the archive"
+
+[web]
+no_article = "no article text on the page (login or paywall needed, or the page has no text)"
+too_big = "the page is too large (over {mb} MB)"
+gone = "the page no longer exists ({code})"
+http_error = "the site answered with error {code}"
+network_error = "network error: {detail}"
 
 [plural.items]
 one = "{n} item"
@@ -269,8 +285,8 @@ config_error = "Settings error: {error}"
 run_doctor = "Details: backlog-digest doctor"
 config_created = "Created settings file: {path}"
 db_error = "Database error: {error}"
-help_add = "add a source: YouTube links (playlists, channels, videos) or a folder with books"
-help_urls = "links (several — separated by spaces) or the full path to a folder"
+help_add = "add a source: YouTube links, a folder with books, article links or a bookmarks file"
+help_urls = "links (several — separated by spaces), a folder, or a bookmarks / Pocket / Instapaper file"
 help_name = "source name"
 help_folder = "subfolder for this source's summaries"
 help_no_sync = "do not fetch the lists right away"

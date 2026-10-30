@@ -61,20 +61,28 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn: Any) -> int:
-    from . import pipeline
+    from . import pipeline, web
     from .menu import Menu
 
     if args.command == "add":
-        # тека на диску — джерело «папка»; інакше — посилання YouTube
+        # тека на диску — джерело «папка»; посилання не на YouTube або файл закладок — «статті»;
+        # інакше — посилання YouTube
         local = Path(args.urls[0]).expanduser()
         is_folder = len(args.urls) == 1 and local.is_absolute() and local.is_dir()
-        name = args.name or (local.name if is_folder else "YouTube")
+        is_web = not is_folder and any((web.is_url(a) and not web.is_youtube(a)) or Path(a).expanduser().is_file()
+                                       for a in args.urls)
+        name = args.name or (local.name if is_folder else t("sources.web_default_name") if is_web else "YouTube")
         if any(s["name"] == name for s in db.list_sources(conn)):
             print(t("sources.name_taken", name=name), file=sys.stderr)
             return 2
         if is_folder:
             sid = pipeline.add_folder_source(conn, name, str(local), args.folder or name)
             print(t("sources.added_folder", name=name))
+        elif is_web:
+            urls = [a for a in args.urls if web.is_url(a)]
+            files = [str(Path(a).expanduser().resolve()) for a in args.urls if not web.is_url(a)]
+            sid = pipeline.add_web_source(conn, name, urls, files, args.folder or name)
+            print(t("sources.added_web", name=name))
         else:
             sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
             print(t("sources.added", name=name))

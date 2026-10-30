@@ -1,7 +1,7 @@
 # backlog-digest
 
-> 🚧 Early stage — stage 3 of 7: YouTube playlists/channels and folders with books → summaries in Obsidian / Markdown.
-> Рання стадія — етап 3 із 7: плейлисти й канали YouTube, теки з книгами → конспекти в Obsidian / Markdown.
+> 🚧 Early stage — stage 3 of 7: YouTube, folders with books, web articles → summaries in Obsidian / Markdown.
+> Рання стадія — етап 3 із 7: YouTube, теки з книгами, веб-статті → конспекти в Obsidian / Markdown.
 
 **EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
 a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
@@ -104,6 +104,23 @@ Dropbox). Або командою: `.venv\Scripts\bdig add "D:\Книги"`. П�
   книга продовжиться з того місця; коли конспект готовий — вони видаляються.
 - Скан без текстового шару отримує статус «без тексту» (розпізнавання сканів — на пізніших етапах).
 - Та сама книга в кількох теках конспектується один раз; перейменований чи переміщений файл не стає новим.
+
+### Веб-статті (етап 3, частина 2)
+
+Меню → 2 Джерела → 3 Додати статті → по одному в рядку: посилання або повний шлях до файлу:
+- закладки браузера — HTML-експорт Chrome, Edge, Firefox, Safari (теки закладок стають списками);
+- експорт Pocket (HTML або CSV), Instapaper (CSV), будь-який CSV зі стовпцем `url`, або TXT — посилання в рядку.
+
+Або командою: `.venv\Scripts\bdig add "D:\bookmarks.html"` чи `.venv\Scripts\bdig add https://site/article`.
+
+- Програма завантажує сторінку й бере лише основний текст (без меню, реклами й коментарів — пакет trafilatura),
+  разом із назвою, автором і датою. Посилання на PDF читається як книга.
+- Статті обробляються на кроці «конспекти» (меню → 3, режим 1 або 3; команда `bdig summarize`).
+- Посилання на YouTube у закладках стають відео (той самий конспект, що й у джерелі YouTube).
+- Сторінки, якої більше немає (404), і сторінки без тексту статті (вхід, платний доступ) отримують
+  статус «без тексту»; тимчасові помилки сайту — повтор пізніше.
+- Файл закладок перечитується при кожному оновленні списків: можна перезберегти його з браузера —
+  додадуться лише нові посилання.
 
 ### Де програма тримає файли
 

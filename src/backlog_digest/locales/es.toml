@@ -153,6 +153,12 @@ add_folder = "Añadir una carpeta con libros y documentos"
 folder_help = "Una carpeta en el disco (también sincronizada: Google Drive, OneDrive, Dropbox). Las subcarpetas de primer nivel se convierten en listas.\nFormatos: PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU con DjVuLibre; MOBI, AZW3, DOC con Calibre."
 folder_not_found = "No existe esa carpeta (se necesita una ruta completa): {path}"
 added_folder = "Fuente «{name}» añadida. Buscando archivos..."
+type_web = "artículos"
+add_web = "Añadir artículos: enlaces, marcadores del navegador, Pocket, Instapaper"
+web_help = "Pegue, uno por línea: enlaces de artículos o la ruta completa de un archivo —\nmarcadores del navegador (exportación HTML), exportación de Pocket (HTML/CSV), Instapaper (CSV) o una lista TXT de enlaces.\nLas carpetas de marcadores se convierten en listas; los enlaces de YouTube, en vídeos. Línea vacía — listo."
+not_link_or_file = "Lo omito — no es un enlace ni un archivo: {value}"
+web_default_name = "Artículos"
+added_web = "Fuente «{name}» añadida. Recopilando enlaces..."
 
 [sync]
 source = "Fuente «{name}»:"
@@ -160,6 +166,7 @@ list_done = "  {name}: {total} en la lista, {new} nuevos"
 list_error = "  ✗ no se pudo obtener la lista {url}: {detail}"
 folder_missing = "  ✗ la carpeta no existe o no está disponible: {path}"
 folder_empty = "  no hay libros ni documentos en formatos compatibles en la carpeta: {path}"
+file_error = "  ✗ no se pudo leer el archivo {path}: {detail}"
 
 [process]
 empty_queue = "La cola está vacía. Añada una fuente o actualice las listas (opción 2)."
@@ -201,6 +208,7 @@ text = "texto: {format}, {chars} caracteres"
 parts = "partes: {n}"
 part = "parte {n}/{total}..."
 part_cached = "parte {n}/{total} — ya hecha"
+web_error = "no se pudo cargar la página: {detail}"
 
 [llm]
 quota = "  [modelo] {model}: cuota agotada — paso al siguiente"
@@ -235,6 +243,7 @@ evidence_unscientific = "no científico"
 open_file = "Abrir el archivo"
 verdict_read = "Leer"
 verdict_read_partial = "Leer una parte"
+open_article = "Abrir el artículo"
 
 [read]
 unsupported = "el formato {ext} no es compatible"
@@ -246,6 +255,13 @@ need_calibre = "MOBI, AZW3 y DOC necesitan el programa gratuito Calibre (calibre
 tool_failed = "{tool} no pudo leer el archivo: {detail}"
 encrypted = "el PDF está protegido con contraseña"
 no_fb2_in_zip = "no hay ningún archivo .fb2 en el archivo comprimido"
+
+[web]
+no_article = "no hay texto de artículo en la página (requiere inicio de sesión o suscripción, o no tiene texto)"
+too_big = "la página es demasiado grande (más de {mb} MB)"
+gone = "la página ya no existe ({code})"
+http_error = "el sitio respondió con el error {code}"
+network_error = "error de red: {detail}"
 
 [plural.items]
 one = "{n} elemento"
@@ -269,8 +285,8 @@ config_error = "Error en los ajustes: {error}"
 run_doctor = "Detalles: backlog-digest doctor"
 config_created = "Archivo de ajustes creado: {path}"
 db_error = "Error de la base de datos: {error}"
-help_add = "añadir una fuente: enlaces de YouTube (listas, canales, vídeos) o una carpeta con libros"
-help_urls = "enlaces (varios — separados por espacios) o la ruta completa de una carpeta"
+help_add = "añadir una fuente: enlaces de YouTube, una carpeta con libros, enlaces de artículos o un archivo de marcadores"
+help_urls = "enlaces (varios — separados por espacios), una carpeta o un archivo de marcadores / Pocket / Instapaper"
 help_name = "nombre de la fuente"
 help_folder = "subcarpeta para los resúmenes de esta fuente"
 help_no_sync = "no obtener las listas de inmediato"

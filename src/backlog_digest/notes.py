@@ -20,7 +20,7 @@ from .paths import Paths
 
 LABEL_KEYS = [
     "about", "key_points", "useful", "grounding", "evidence_level", "recommendations", "questionable",
-    "water", "audience", "verdict", "score", "open_youtube", "open_file", "untitled",
+    "water", "audience", "verdict", "score", "open_youtube", "open_file", "open_article", "untitled",
     "verdict_watch", "verdict_partial", "verdict_summary_enough", "verdict_skip",
     "verdict_read", "verdict_read_partial",
     "evidence_high", "evidence_medium", "evidence_low", "evidence_unscientific",
@@ -139,6 +139,12 @@ def render_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str],
         channel = item.get("author") or ""
         head = " · ".join(x for x in (channel, duration, f"[{L['open_youtube']}]({url})" if url else "") if x)
         meta: dict[str, Any] = {"url": url, "channel": channel, "duration": duration}
+    elif kind == "article":
+        url = item.get("url") or ""
+        site = item.get("author") or ""
+        author, date = s.get("source_author") or "", s.get("source_date") or ""
+        head = " · ".join(x for x in (site, author, date, f"[{L['open_article']}]({url})" if url else "") if x)
+        meta = {"url": url, "site": site, "author": author, "date": date}
     else:
         file = item.get("path") or ""
         file_format = item.get("author") or ""

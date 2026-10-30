@@ -153,6 +153,12 @@ add_folder = "Ajouter un dossier de livres et de documents"
 folder_help = "Un dossier sur le disque (synchronisé aussi : Google Drive, OneDrive, Dropbox). Les sous-dossiers de premier niveau deviennent des listes.\nFormats : PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD ; DJVU avec DjVuLibre ; MOBI, AZW3, DOC avec Calibre."
 folder_not_found = "Dossier introuvable (il faut un chemin complet) : {path}"
 added_folder = "Source « {name} » ajoutée. Recherche des fichiers..."
+type_web = "articles"
+add_web = "Ajouter des articles : liens, favoris du navigateur, Pocket, Instapaper"
+web_help = "Collez, un par ligne : des liens d'articles ou le chemin complet d'un fichier —\nfavoris du navigateur (export HTML), export Pocket (HTML/CSV), Instapaper (CSV) ou liste TXT de liens.\nLes dossiers de favoris deviennent des listes ; les liens YouTube, des vidéos. Ligne vide — terminé."
+not_link_or_file = "Ignoré — ni un lien ni un fichier : {value}"
+web_default_name = "Articles"
+added_web = "Source « {name} » ajoutée. Collecte des liens..."
 
 [sync]
 source = "Source « {name} » :"
@@ -160,6 +166,7 @@ list_done = "  {name} : {total} dans la liste, {new} nouvelles"
 list_error = "  ✗ impossible de récupérer la liste {url} : {detail}"
 folder_missing = "  ✗ dossier introuvable ou inaccessible : {path}"
 folder_empty = "  aucun livre ni document dans un format pris en charge : {path}"
+file_error = "  ✗ impossible de lire le fichier {path} : {detail}"
 
 [process]
 empty_queue = "La file d'attente est vide. Ajoutez une source ou mettez à jour les listes (option 2)."
@@ -201,6 +208,7 @@ text = "texte : {format}, {chars} caractères"
 parts = "parties : {n}"
 part = "partie {n}/{total}..."
 part_cached = "partie {n}/{total} — déjà faite"
+web_error = "impossible de charger la page : {detail}"
 
 [llm]
 quota = "  [modèle] {model} : quota épuisé — passage au suivant"
@@ -235,6 +243,7 @@ evidence_unscientific = "non scientifique"
 open_file = "Ouvrir le fichier"
 verdict_read = "À lire"
 verdict_read_partial = "Lire en partie"
+open_article = "Ouvrir l'article"
 
 [read]
 unsupported = "le format {ext} n'est pas pris en charge"
@@ -246,6 +255,13 @@ need_calibre = "MOBI, AZW3 et DOC nécessitent le programme gratuit Calibre (cal
 tool_failed = "{tool} n'a pas pu lire le fichier : {detail}"
 encrypted = "le PDF est protégé par un mot de passe"
 no_fb2_in_zip = "l'archive ne contient pas de fichier .fb2"
+
+[web]
+no_article = "pas de texte d'article sur la page (connexion ou abonnement requis, ou page sans texte)"
+too_big = "la page est trop volumineuse (plus de {mb} Mo)"
+gone = "la page n'existe plus ({code})"
+http_error = "le site a répondu par l'erreur {code}"
+network_error = "erreur réseau : {detail}"
 
 [plural.items]
 one = "{n} élément"
@@ -269,8 +285,8 @@ config_error = "Erreur dans les paramètres : {error}"
 run_doctor = "Détails : backlog-digest doctor"
 config_created = "Fichier de paramètres créé : {path}"
 db_error = "Erreur de base de données : {error}"
-help_add = "ajouter une source : liens YouTube (playlists, chaînes, vidéos) ou dossier de livres"
-help_urls = "liens (plusieurs — séparés par des espaces) ou chemin complet d'un dossier"
+help_add = "ajouter une source : liens YouTube, dossier de livres, liens d'articles ou fichier de favoris"
+help_urls = "liens (plusieurs — séparés par des espaces), dossier ou fichier de favoris / Pocket / Instapaper"
 help_name = "nom de la source"
 help_folder = "sous-dossier pour les résumés de cette source"
 help_no_sync = "ne pas récupérer les listes tout de suite"

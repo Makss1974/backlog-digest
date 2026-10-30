@@ -230,6 +230,14 @@ def upsert_item(conn: sqlite3.Connection, source_id: int, key: str, list_name: s
     return True
 
 
+def set_item_meta(conn: sqlite3.Connection, item_id: int, **meta: Any) -> None:
+    """Уточнює метадані елемента (напр. назву статті, відому лише після завантаження сторінки)."""
+    unknown = set(meta) - set(_ITEM_META)
+    if unknown:
+        raise ValueError(f"unknown item fields: {sorted(unknown)}")
+    _set(conn, item_id, **meta)
+
+
 def get_item(conn: sqlite3.Connection, item_id: int) -> sqlite3.Row | None:
     row: sqlite3.Row | None = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     return row

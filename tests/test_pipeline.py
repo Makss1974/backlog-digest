@@ -314,6 +314,36 @@ def test_long_book_is_read_in_parts_and_resumes_after_quota(env, books):
     assert "2 parts" in chain.calls[1] and not list(cache.rglob("*.md"))   # кеш частин прибрано
 
 
+# ---------------------------------------------------------------- веб-статті
+
+def test_web_source_articles_and_youtube_links(env, tmp_path, monkeypatch):
+    from backlog_digest import web
+
+    (tmp_path / "list.txt").write_text("https://blog.example/post\nhttps://www.youtube.com/watch?v=vid00000001\n"
+                                       "https://blog.example/gone\n", encoding="utf-8")
+    sid = pipeline.add_web_source(env.conn, "Articles", [], [str(tmp_path / "list.txt")], "Web")
+    sync(env)                                                              # джерело YouTube з тим самим відео
+    pipeline.sync_source(env.conn, db.get_source(env.conn, sid), env.logs.append)
+    kinds = [r[0] for r in env.conn.execute("SELECT kind FROM items WHERE source_id=? ORDER BY position", (sid,))]
+    assert kinds == ["article", "video", "article"]
+
+    def fetch(url):
+        if url.endswith("gone"):
+            raise web.Gone("the page no longer exists (404)")
+        return web.Article("[text] " + samples.PARA, "A great post", "Jane Doe", "2026-01-02", "blog.example")
+
+    monkeypatch.setattr(web, "fetch_article", fetch)
+    chain = FakeChain()
+    stats = env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE)
+    assert (stats.done, stats.no_text) == (1, 1)
+    assert "web article, blog.example, Jane Doe, 2026-01-02" in chain.calls[0]
+    note = (env.root / "Web" / "A great post.md").read_text(encoding="utf-8")
+    assert "Open the article" in note and "Jane Doe" in note and 'site: "blog.example"' in note
+    assert db.stage_counts(env.conn, "en") == (4, 0)   # 3 відео з YouTube + 1 із закладок
+    env.make().run(limit=10)                                             # усе разом: відео — один конспект
+    assert env.conn.execute("SELECT COUNT(*) FROM results WHERE key='youtube:vid00000001'").fetchone()[0] == 1
+
+
 def test_known_missing_subtitles_apply_to_the_same_video_elsewhere(env):
     sync(env)
     env.transcripts["vid00000001"] = None

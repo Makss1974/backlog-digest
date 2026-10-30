@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, notes, readers, summarize, youtube
+from . import db, folders, notes, readers, summarize, web, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
 from .paths import Paths
@@ -24,7 +24,8 @@ ALL, FETCH, SUMMARIZE = db.ALL, db.FETCH, db.SUMMARIZE
 
 YOUTUBE = "youtube"
 FOLDER = "folder"
-SOURCE_TYPES = (YOUTUBE, FOLDER)
+WEB = "web"
+SOURCE_TYPES = (YOUTUBE, FOLDER, WEB)
 
 Log = Callable[[str], None]
 
@@ -39,9 +40,14 @@ def add_folder_source(conn: sqlite3.Connection, name: str, path: str, folder: st
     return db.add_source(conn, FOLDER, name, {"path": path}, folder or name)
 
 
+def add_web_source(conn: sqlite3.Connection, name: str, urls: list[str], files: list[str], folder: str = "") -> int:
+    return db.add_source(conn, WEB, name, {"urls": urls, "files": files}, folder or name)
+
+
 def sync_source(conn: sqlite3.Connection, source: dict[str, Any], log: Log = print) -> tuple[int, int]:
     """Оновлює список елементів джерела. Повертає (нових, усього в джерелі)."""
-    new = _sync_folder(conn, source, log) if source["type"] == FOLDER else _sync_youtube(conn, source, log)
+    sync = {FOLDER: _sync_folder, WEB: _sync_web}.get(source["type"], _sync_youtube)
+    new = sync(conn, source, log)
     total = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source["id"],)).fetchone()[0]
     return new, int(total)
 
@@ -62,6 +68,30 @@ def _sync_folder(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> 
         log(t("sync.list_done", name=name or source["name"], total=n, new=added.get(name, 0)))
     if not total:
         log(t("sync.folder_empty", path=str(root)))
+    return sum(added.values())
+
+
+def _sync_web(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
+    """Посилання: прямі й з файлів імпорту (закладки, Pocket, Instapaper). Файл читаємо щоразу заново:
+    його можна перезберегти з браузера — додадуться лише нові посилання."""
+    settings = source["settings"]
+    links = [web.Link(url) for url in settings.get("urls", [])]
+    for file in settings.get("files", []):
+        try:
+            links += web.read_links(Path(file))
+        except OSError as e:
+            log(t("sync.file_error", path=file, detail=str(e)))
+    added: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for pos, link in enumerate(links):
+        key, kind = web.item_key(link.url)
+        url = youtube.WATCH_URL.format(key.removeprefix("youtube:")) if kind == "video" else link.url
+        total[link.list_name] = total.get(link.list_name, 0) + 1
+        if db.upsert_item(conn, source["id"], key, link.list_name, kind=kind, url=url, position=pos,
+                          **({"title": link.title} if link.title else {})):
+            added[link.list_name] = added.get(link.list_name, 0) + 1
+    for name, n in total.items():
+        log(t("sync.list_done", name=name or source["name"], total=n, new=added.get(name, 0)))
     return sum(added.values())
 
 
@@ -189,7 +219,8 @@ class Processor:
                 continue
             if not needs_fetch and not self._summarizing:   # той самий ролик в іншому списку — уже зібрано
                 continue
-            self.log(f"\n[{i}/{len(rows)}] {item['title']}" + (f"  ({item['list_name']})" if item["list_name"] else ""))
+            where = f"  ({item['list_name']})" if item["list_name"] else ""
+            self.log(f"\n[{i}/{len(rows)}] {item['title'] or item['url'] or ''}{where}")
             try:
                 self._process(item, text, saved, stats)
             except youtube.BlockedError as e:
@@ -218,9 +249,9 @@ class Processor:
             self.log("  " + t("process.reused"))
             return
 
-        if item["kind"] == "text":
+        if item["kind"] in ("text", "article"):
             if self._summarizing:
-                self._summarize_text(item, stats)
+                (self._summarize_text if item["kind"] == "text" else self._summarize_article)(item, stats)
             return
         if item["kind"] != "video":
             self._error(item, stats, t("process.unsupported", kind=item["kind"]))
@@ -281,23 +312,49 @@ class Processor:
             db.delete_transcript(self.conn, item["key"])   # конспект є — субтитри більше не потрібні
 
     def _summarize_text(self, item: dict[str, Any], stats: RunStats) -> None:
-        """Книга чи документ: читаємо файл; довгий текст — частинами (нотатки частин кешуються на диску,
-        тож після зупинки книга продовжиться, а не почнеться заново), потім один підсумковий конспект."""
+        """Книга чи документ із папки."""
         try:
             text = readers.extract_text(Path(item["path"] or ""))
         except readers.NoText as e:
-            db.mark_no_text(self.conn, item["id"], str(e))
-            stats.no_text += 1
-            self.log("  — " + str(e))
+            self._no_text_reason(item, stats, str(e))
             return
         except (readers.ReadError, OSError) as e:
             self._error(item, stats, t("process.read_error", detail=short(str(e), 200)))
             return
+        self._summarize_long(item, stats, text, item["author"] or "")
+
+    def _summarize_article(self, item: dict[str, Any], stats: RunStats) -> None:
+        """Веб-стаття: завантажуємо сторінку, беремо основний текст, назву й автора."""
+        try:
+            article = web.fetch_article(item["url"] or "")
+        except (web.Gone, readers.NoText) as e:   # сторінки немає / на ній немає статті — повторювати марно
+            self._no_text_reason(item, stats, str(e))
+            return
+        except web.FetchError as e:
+            self._error(item, stats, t("process.web_error", detail=short(str(e), 200)))
+            return
+        if article.title and (not item["title"] or item["title"] == item["url"]):
+            item["title"] = article.title   # у списку посилань назви не було — беремо зі сторінки
+        item["author"] = article.site
+        db.set_item_meta(self.conn, item["id"], title=item["title"], author=item["author"])
+        about = ", ".join(x for x in (f"web article, {article.site}", article.author, article.date) if x)
+        self._summarize_long(item, stats, article.text, about,
+                             extra={"source_author": article.author, "source_date": article.date})
+
+    def _no_text_reason(self, item: dict[str, Any], stats: RunStats, reason: str) -> None:
+        db.mark_no_text(self.conn, item["id"], reason)
+        stats.no_text += 1
+        self.log("  — " + reason)
+
+    def _summarize_long(self, item: dict[str, Any], stats: RunStats, text: str, file_format: str,
+                        extra: dict[str, Any] | None = None) -> None:
+        """Текст будь-якої довжини: довгий — частинами (нотатки частин кешуються на диску, тож після
+        зупинки книга продовжиться, а не почнеться заново), потім один підсумковий конспект."""
         chunks = readers.split_chunks(text, self.cfg["models"]["max_chars"])
-        self.log("  " + t("process.text", chars=len(text), format=item["author"] or "")
+        self.log("  " + t("process.text", chars=len(text), format=file_format)
                  + (" · " + t("process.parts", n=len(chunks)) if len(chunks) > 1 else ""))
         deep = self._deep(len(text))
-        title, file_format = item["title"] or "", item["author"] or ""
+        title = item["title"] or ""
         cache = self.paths.cache_dir / "chunks" / item["key"].replace(":", "_")
         if len(chunks) == 1:
             user = summarize.text_prompt(title, file_format, text)
@@ -307,7 +364,7 @@ class Processor:
                 return
             body = "\n\n".join(f"### Part {n}\n{note}" for n, note in enumerate(parts, 1))
             user = summarize.text_prompt(title, file_format, body, from_chunks=len(chunks))
-        if self._finish(item, summarize.system_prompt(self.language, "text"), user, deep, None, stats):
+        if self._finish(item, summarize.system_prompt(self.language, "text"), user, deep, None, stats, extra):
             shutil.rmtree(cache, ignore_errors=True)   # конспект є — нотатки частин більше не потрібні
 
     def _chunk_notes(self, item: dict[str, Any], chunks: list[str], cache: Path, deep: bool,
@@ -338,8 +395,9 @@ class Processor:
         return out
 
     def _finish(self, item: dict[str, Any], system: str, user: str, deep: bool, source_language: str | None,
-                stats: RunStats) -> bool:
-        """Підсумковий конспект: запит до моделі, перевірка відповіді, запис нотатки. True — готово."""
+                stats: RunStats, extra: dict[str, Any] | None = None) -> bool:
+        """Підсумковий конспект: запит до моделі, перевірка відповіді, запис нотатки. True — готово.
+        extra — відомості про джерело (автор і дата статті), що зберігаються разом із конспектом."""
         summary = None
         error = ""
         for _attempt in range(2):   # зламаний JSON — ще одна спроба з поясненням
@@ -361,6 +419,7 @@ class Processor:
         if summary is None:
             self._error(item, stats, t("process.bad_answer_final", detail=error))
             return False
+        summary.update({k: v for k, v in (extra or {}).items() if v})
         db.save_result(self.conn, item["key"], self.language, summary, source_language=source_language,
                        model=res.model, tokens_in=res.tokens_in, tokens_out=res.tokens_out)
         path = self._write(item, summary)

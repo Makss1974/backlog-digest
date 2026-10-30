@@ -153,6 +153,12 @@ add_folder = "Додати папку з книгами й документам�
 folder_help = "Тека на диску (можна синхронізовану: Google Drive, OneDrive, Dropbox). Підтеки першого рівня стануть окремими списками.\nФормати: PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU — з DjVuLibre; MOBI, AZW3, DOC — з Calibre."
 folder_not_found = "Такої теки немає (потрібен повний шлях): {path}"
 added_folder = "Додано джерело «{name}». Шукаю файли..."
+type_web = "статті"
+add_web = "Додати статті: посилання, закладки браузера, Pocket, Instapaper"
+web_help = "Вставте, по одному в рядку: посилання на статті або повний шлях до файлу —\nзакладки браузера (HTML-експорт), експорт Pocket (HTML/CSV), Instapaper (CSV), або TXT зі списком посилань.\nТеки закладок стануть списками; посилання на YouTube — відео. Порожній рядок — готово."
+not_link_or_file = "Пропускаю — це не посилання й не файл: {value}"
+web_default_name = "Статті"
+added_web = "Додано джерело «{name}». Збираю посилання..."
 
 [sync]
 source = "Джерело «{name}»:"
@@ -160,6 +166,7 @@ list_done = "  {name}: у списку {total}, нових {new}"
 list_error = "  ✗ не вдалося отримати список {url}: {detail}"
 folder_missing = "  ✗ теки немає або вона недоступна: {path}"
 folder_empty = "  у теці немає книг чи документів підтримуваних форматів: {path}"
+file_error = "  ✗ не вдалося прочитати файл {path}: {detail}"
 
 [process]
 empty_queue = "Черга порожня. Додайте джерело або оновіть списки (пункт 2)."
@@ -201,6 +208,7 @@ text = "текст: {format}, символів: {chars}"
 parts = "частин: {n}"
 part = "частина {n}/{total}..."
 part_cached = "частина {n}/{total} — уже є"
+web_error = "не вдалося завантажити сторінку: {detail}"
 
 [llm]
 quota = "  [модель] {model}: ліміт вичерпано — переходжу до наступної"
@@ -235,6 +243,7 @@ evidence_unscientific = "ненауковий"
 open_file = "Відкрити файл"
 verdict_read = "Читати"
 verdict_read_partial = "Прочитати частину"
+open_article = "Відкрити статтю"
 
 [read]
 unsupported = "формат {ext} не підтримується"
@@ -246,6 +255,13 @@ need_calibre = "для MOBI, AZW3 і DOC потрібна безкоштовна
 tool_failed = "{tool} не зміг прочитати файл: {detail}"
 encrypted = "PDF захищено паролем"
 no_fb2_in_zip = "в архіві немає файлу .fb2"
+
+[web]
+no_article = "на сторінці немає тексту статті (потрібен вхід, платний доступ або сторінка без тексту)"
+too_big = "сторінка завелика (понад {mb} МБ)"
+gone = "сторінки більше немає ({code})"
+http_error = "сайт відповів помилкою {code}"
+network_error = "помилка мережі: {detail}"
 
 [plural.items]
 one = "{n} елемент"
@@ -272,8 +288,8 @@ config_error = "Помилка в налаштуваннях: {error}"
 run_doctor = "Подробиці: backlog-digest doctor"
 config_created = "Створено файл налаштувань: {path}"
 db_error = "Помилка бази: {error}"
-help_add = "додати джерело: посилання YouTube (плейлисти, канали, відео) або теку з книгами"
-help_urls = "посилання (кілька — через пробіл) або повний шлях до теки"
+help_add = "додати джерело: посилання YouTube, теку з книгами, посилання на статті або файл закладок"
+help_urls = "посилання (кілька — через пробіл), тека або файл закладок / Pocket / Instapaper"
 help_name = "назва джерела"
 help_folder = "підтека для конспектів цього джерела"
 help_no_sync = "не отримувати списки одразу"

@@ -26,6 +26,7 @@ dependencies = [
     "yt-dlp>=2025.1.1",                 # списки відео з плейлистів і каналів
     "youtube-transcript-api>=1.2,<2",   # субтитри
     "pypdf>=5",                         # текст із PDF
+    "trafilatura>=2,<3",                # основний текст веб-статей
 ]
 
 [project.optional-dependencies]

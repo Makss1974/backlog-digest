@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, doctor, i18n, keys, llm, pipeline
+from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, web
 from .i18n import t
 from .paths import Paths
 
@@ -115,10 +115,11 @@ class Menu:
                 print(f"  • {s['name']} ({kind}): {t('sources.counts', total=total, queued=queued or 0)}")
             print(f"\n  1. {t('sources.add_youtube')}")
             print(f"  2. {t('sources.add_folder')}")
-            print(f"  3. {t('sources.sync')}")
-            print(f"  4. {t('sources.delete')}")
+            print(f"  3. {t('sources.add_web')}")
+            print(f"  4. {t('sources.sync')}")
+            print(f"  5. {t('sources.delete')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 4)
+            choice = ask_int(t("settings.choose"), 0, 0, 5)
             if choice == 0:
                 return
             if choice == 1:
@@ -126,8 +127,10 @@ class Menu:
             elif choice == 2:
                 self.add_folder()
             elif choice == 3:
-                pipeline.sync_all(self.conn)
+                self.add_web()
             elif choice == 4:
+                pipeline.sync_all(self.conn)
+            elif choice == 5:
                 self.delete_source(sources)
             print()
 
@@ -168,6 +171,30 @@ class Menu:
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
         sid = pipeline.add_folder_source(self.conn, name, str(path), folder)
         print(t("sources.added_folder", name=name))
+        source = db.get_source(self.conn, sid)
+        if source:
+            new, _ = pipeline.sync_source(self.conn, source)
+            print(t("sources.synced", new=new))
+
+    def add_web(self) -> None:
+        print(t("sources.web_help"))
+        lines = [line.strip('"') for line in ask_lines()]
+        urls = [x for x in lines if web.is_url(x)]
+        files = [str(Path(x).expanduser()) for x in lines if not web.is_url(x) and Path(x).expanduser().is_file()]
+        for bad in (x for x in lines if not web.is_url(x) and not Path(x).expanduser().is_file()):
+            print(t("sources.not_link_or_file", value=bad))
+        if not urls and not files:
+            return
+        names = {s["name"] for s in db.list_sources(self.conn)}
+        base = t("sources.web_default_name")
+        default = next(n for n in (f"{base} {i}" if i else base for i in range(100)) if n not in names)
+        name = ask(f"{t('sources.name')} [{default}]: ") or default
+        if name in names:
+            print(t("sources.name_taken", name=name))
+            return
+        folder = ask(f"{t('sources.folder')} [{name}]: ") or name
+        sid = pipeline.add_web_source(self.conn, name, urls, files, folder)
+        print(t("sources.added_web", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)
