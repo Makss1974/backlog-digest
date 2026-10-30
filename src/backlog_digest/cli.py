@@ -64,6 +64,8 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
     from . import pipeline, web
     from .menu import Menu
 
+    if args.command == "add" and args.urls[0].lower() == "raindrop":
+        return _add_raindrop(conn, paths, args)
     if args.command == "add":
         # тека на диску — джерело «папка»; посилання не на YouTube або файл закладок — «статті»;
         # інакше — посилання YouTube
@@ -98,6 +100,40 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
         return 3 if stats.stopped else 0
     Menu(paths, cfg, conn).run()
+    return 0
+
+
+def _add_raindrop(conn: Any, paths: Any, args: argparse.Namespace) -> int:
+    """bdig add raindrop [колекція ...] — усі закладки або лише названі колекції (з вкладеними)."""
+    from . import keys, pipeline, raindrop
+
+    token = keys.get_secret(raindrop.TOKEN, paths)
+    if not token:
+        print(t("raindrop.no_token"), file=sys.stderr)
+        return 2
+    wanted = args.urls[1:]
+    ids: list[int] = []
+    if wanted:
+        try:
+            cols = raindrop.collections(token)
+        except raindrop.RaindropError as e:
+            print(t("raindrop.failed", detail=str(e)), file=sys.stderr)
+            return 2
+        for title in wanted:
+            found = [c for c in cols if title.lower() in (c.title.lower(), c.title.rsplit("/", 1)[-1].lower())]
+            if not found:
+                print(t("raindrop.no_collection", name=title), file=sys.stderr)
+                return 2
+            ids += [c.id for c in found]
+    name = args.name or (wanted[0] if len(wanted) == 1 else "Raindrop")
+    if any(s["name"] == name for s in db.list_sources(conn)):
+        print(t("sources.name_taken", name=name), file=sys.stderr)
+        return 2
+    sid = pipeline.add_raindrop_source(conn, name, ids, args.folder or name)
+    print(t("sources.added_raindrop", name=name))
+    source = db.get_source(conn, sid)
+    if source and not args.no_sync:
+        print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))
     return 0
 
 

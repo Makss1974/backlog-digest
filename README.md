@@ -1,7 +1,7 @@
 # backlog-digest
 
-> 🚧 Early stage — stage 3 of 7: YouTube, folders with books, web articles → summaries in Obsidian / Markdown.
-> Рання стадія — етап 3 із 7: YouTube, теки з книгами, веб-статті → конспекти в Obsidian / Markdown.
+> 🚧 Early stage — stage 3 of 7: YouTube, folders with books, web articles, Raindrop → summaries in Obsidian / Markdown.
+> Рання стадія — етап 3 із 7: YouTube, теки з книгами, веб-статті, Raindrop → конспекти в Obsidian / Markdown.
 
 **EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
 a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
@@ -121,6 +121,20 @@ Dropbox). Або командою: `.venv\Scripts\bdig add "D:\Книги"`. П�
   статус «без тексту»; тимчасові помилки сайту — повтор пізніше.
 - Файл закладок перечитується при кожному оновленні списків: можна перезберегти його з браузера —
   додадуться лише нові посилання.
+
+### Закладки з Raindrop.io (етап 3, частина 3)
+
+1. **Токен:** <https://app.raindrop.io/settings/integrations> → «Create new app» (назва будь-яка) →
+   відкрити створену програму → «Create test token». Програма лише читає закладки, у Raindrop нічого не змінює.
+2. Меню → 2 Джерела → 4 Додати закладки з Raindrop → вставити токен (його не видно; перевіряється й
+   зберігається у `.env`) → вибрати колекції за номерами або Enter — усі закладки.
+   Або командою (токен — у `RAINDROP_TOKEN` чи `.env`): `.venv\Scripts\bdig add raindrop` (усі) чи
+   `.venv\Scripts\bdig add raindrop "Наука" "Читати пізніше"` (лише ці колекції).
+
+- Колекції стають списками, вкладені — з повним шляхом («Наука/Фізика»); вибрана колекція береться разом
+  із вкладеними. «Несортовані» — без списку; кошик і зображення пропускаються.
+- Далі все як зі статтями: посилання на YouTube — відео, PDF — книга, решта — веб-статті (крок «конспекти»).
+- При кожному оновленні списків нові закладки з Raindrop додаються самі.
 
 ### Де програма тримає файли
 

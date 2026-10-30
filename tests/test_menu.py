@@ -162,7 +162,7 @@ def test_delete_source_from_menu(make_menu, monkeypatch):
     m = make_menu()
     sid = db.add_source(m.conn, "youtube", "Old")
     db.upsert_item(m.conn, sid, "k")
-    feed(monkeypatch, ["2", "5", "1", "yes", "0", "", "q"])
+    feed(monkeypatch, ["2", "6", "1", "yes", "0", "", "q"])
     m.run()
     assert db.list_sources(m.conn) == []
 

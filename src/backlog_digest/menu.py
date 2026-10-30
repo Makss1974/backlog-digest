@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, web
+from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, raindrop, web
 from .i18n import t
 from .paths import Paths
 
@@ -116,10 +116,11 @@ class Menu:
             print(f"\n  1. {t('sources.add_youtube')}")
             print(f"  2. {t('sources.add_folder')}")
             print(f"  3. {t('sources.add_web')}")
-            print(f"  4. {t('sources.sync')}")
-            print(f"  5. {t('sources.delete')}")
+            print(f"  4. {t('sources.add_raindrop')}")
+            print(f"  5. {t('sources.sync')}")
+            print(f"  6. {t('sources.delete')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 5)
+            choice = ask_int(t("settings.choose"), 0, 0, 6)
             if choice == 0:
                 return
             if choice == 1:
@@ -129,8 +130,10 @@ class Menu:
             elif choice == 3:
                 self.add_web()
             elif choice == 4:
-                pipeline.sync_all(self.conn)
+                self.add_raindrop()
             elif choice == 5:
+                pipeline.sync_all(self.conn)
+            elif choice == 6:
                 self.delete_source(sources)
             print()
 
@@ -199,6 +202,60 @@ class Menu:
         if source:
             new, _ = pipeline.sync_source(self.conn, source)
             print(t("sources.synced", new=new))
+
+    def add_raindrop(self) -> None:
+        print(t("raindrop.help"))
+        token = self.raindrop_token()
+        if not token:
+            return
+        try:
+            cols = raindrop.collections(token)
+        except raindrop.RaindropError as e:
+            print(t("raindrop.failed", detail=str(e)))
+            return
+        for i, c in enumerate(cols, 1):
+            print(f"  {i:>2}. {c.title} ({c.count})")
+        raw = ask(f"{t('raindrop.choose')} ")
+        try:
+            numbers = [int(x) for x in raw.replace(",", " ").split()]
+        except ValueError:
+            numbers = [0]
+        if any(not 1 <= n <= len(cols) for n in numbers):
+            print(t("raindrop.bad_choice"))
+            return
+        chosen = [cols[n - 1] for n in numbers]
+        names = {s["name"] for s in db.list_sources(self.conn)}
+        base = chosen[0].title.rsplit("/", 1)[-1] if len(chosen) == 1 else "Raindrop"
+        default = next(n for n in (f"{base} {i}" if i else base for i in range(100)) if n not in names)
+        name = ask(f"{t('sources.name')} [{default}]: ") or default
+        if name in names:
+            print(t("sources.name_taken", name=name))
+            return
+        folder = ask(f"{t('sources.folder')} [{name}]: ") or name
+        sid = pipeline.add_raindrop_source(self.conn, name, [c.id for c in chosen], folder)
+        print(t("sources.added_raindrop", name=name))
+        source = db.get_source(self.conn, sid)
+        if source:
+            new, _ = pipeline.sync_source(self.conn, source)
+            print(t("sources.synced", new=new))
+
+    def raindrop_token(self) -> str | None:
+        """Збережений токен (Enter) або новий; новий перевіряємо й зберігаємо в .env. Значення не показуємо."""
+        saved = keys.get_secret(raindrop.TOKEN, self.paths)
+        prompt = t("raindrop.paste_token_keep") if saved else t("raindrop.paste_token")
+        token = getpass.getpass(f"{prompt} ").strip() or saved
+        if not token:
+            return None
+        print(t("settings.checking_key"))
+        try:
+            user = raindrop.check_token(token)
+        except raindrop.RaindropError as e:
+            print(t("raindrop.failed", detail=str(e)))
+            return None
+        print(t("raindrop.connected", user=user or "?"))
+        if token != saved:
+            print(t("settings.saved", path=str(keys.set_secret(raindrop.TOKEN, token, self.paths))))
+        return token
 
     def delete_source(self, sources: list[dict[str, Any]]) -> None:
         if not sources:

@@ -15,17 +15,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, notes, readers, summarize, web, youtube
+from . import db, folders, keys, notes, raindrop, readers, summarize, web, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
-from .paths import Paths
+from .paths import Paths, get_paths
 
 ALL, FETCH, SUMMARIZE = db.ALL, db.FETCH, db.SUMMARIZE
 
 YOUTUBE = "youtube"
 FOLDER = "folder"
 WEB = "web"
-SOURCE_TYPES = (YOUTUBE, FOLDER, WEB)
+RAINDROP = "raindrop"
+SOURCE_TYPES = (YOUTUBE, FOLDER, WEB, RAINDROP)
 
 Log = Callable[[str], None]
 
@@ -44,9 +45,14 @@ def add_web_source(conn: sqlite3.Connection, name: str, urls: list[str], files: 
     return db.add_source(conn, WEB, name, {"urls": urls, "files": files}, folder or name)
 
 
+def add_raindrop_source(conn: sqlite3.Connection, name: str, collections: list[int], folder: str = "") -> int:
+    """collections — id колекцій Raindrop (з вкладеними); порожній список — усі закладки."""
+    return db.add_source(conn, RAINDROP, name, {"collections": collections}, folder or name)
+
+
 def sync_source(conn: sqlite3.Connection, source: dict[str, Any], log: Log = print) -> tuple[int, int]:
     """Оновлює список елементів джерела. Повертає (нових, усього в джерелі)."""
-    sync = {FOLDER: _sync_folder, WEB: _sync_web}.get(source["type"], _sync_youtube)
+    sync = {FOLDER: _sync_folder, WEB: _sync_web, RAINDROP: _sync_raindrop}.get(source["type"], _sync_youtube)
     new = sync(conn, source, log)
     total = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source["id"],)).fetchone()[0]
     return new, int(total)
@@ -81,6 +87,24 @@ def _sync_web(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int
             links += web.read_links(Path(file))
         except OSError as e:
             log(t("sync.file_error", path=file, detail=str(e)))
+    return _add_links(conn, source, links, log)
+
+
+def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
+    """Закладки Raindrop читаємо щоразу заново — нові закладки додаються, у Raindrop нічого не змінюємо."""
+    token = keys.get_secret(raindrop.TOKEN, get_paths())
+    if not token:
+        log(t("raindrop.no_token"))
+        return 0
+    try:
+        links = raindrop.links(token, source["settings"].get("collections") or None)
+    except raindrop.RaindropError as e:
+        log(t("sync.raindrop_error", detail=str(e)))
+        return 0
+    return _add_links(conn, source, links, log)
+
+
+def _add_links(conn: sqlite3.Connection, source: dict[str, Any], links: list[web.Link], log: Log) -> int:
     added: dict[str, int] = {}
     total: dict[str, int] = {}
     for pos, link in enumerate(links):

@@ -159,6 +159,9 @@ web_help = "Вставте, по одному в рядку: посилання 
 not_link_or_file = "Пропускаю — це не посилання й не файл: {value}"
 web_default_name = "Статті"
 added_web = "Додано джерело «{name}». Збираю посилання..."
+type_raindrop = "Raindrop"
+add_raindrop = "Додати закладки з Raindrop.io"
+added_raindrop = "Додано джерело «{name}». Збираю закладки..."
 
 [sync]
 source = "Джерело «{name}»:"
@@ -167,6 +170,7 @@ list_error = "  ✗ не вдалося отримати список {url}: {de
 folder_missing = "  ✗ теки немає або вона недоступна: {path}"
 folder_empty = "  у теці немає книг чи документів підтримуваних форматів: {path}"
 file_error = "  ✗ не вдалося прочитати файл {path}: {detail}"
+raindrop_error = "  ✗ Raindrop: {detail}"
 
 [process]
 empty_queue = "Черга порожня. Додайте джерело або оновіть списки (пункт 2)."
@@ -263,6 +267,21 @@ gone = "сторінки більше немає ({code})"
 http_error = "сайт відповів помилкою {code}"
 network_error = "помилка мережі: {detail}"
 
+[raindrop]
+help = "Потрібен токен Raindrop (програма лише читає закладки, нічого не змінює):\napp.raindrop.io/settings/integrations → «Create new app» → назва будь-яка → «Create test token»."
+paste_token = "Вставте токен (його не буде видно):"
+paste_token_keep = "Токен уже збережено. Enter — використати його, або вставте новий:"
+connected = "Підключено до Raindrop: {user}"
+failed = "Raindrop: {detail}"
+choose = "Номери колекцій через кому (вкладені додаються самі); Enter — усі закладки:"
+bad_choice = "Немає колекції з таким номером."
+no_token = "Немає токена Raindrop: додайте джерело Raindrop у меню (2 → 4) або задайте RAINDROP_TOKEN."
+no_collection = "У Raindrop немає колекції «{name}»."
+bad_token = "токен не підходить (неправильний або відкликаний)"
+http_error = "сервер відповів помилкою {code}"
+network_error = "помилка мережі: {detail}"
+api_error = "помилка: {detail}"
+
 [plural.items]
 one = "{n} елемент"
 few = "{n} елементи"
@@ -288,8 +307,8 @@ config_error = "Помилка в налаштуваннях: {error}"
 run_doctor = "Подробиці: backlog-digest doctor"
 config_created = "Створено файл налаштувань: {path}"
 db_error = "Помилка бази: {error}"
-help_add = "додати джерело: посилання YouTube, теку з книгами, посилання на статті або файл закладок"
-help_urls = "посилання (кілька — через пробіл), тека або файл закладок / Pocket / Instapaper"
+help_add = "додати джерело: посилання YouTube, теку з книгами, посилання на статті, файл закладок або raindrop"
+help_urls = "посилання (кілька — через пробіл), тека, файл закладок / Pocket / Instapaper, або raindrop [колекція ...]"
 help_name = "назва джерела"
 help_folder = "підтека для конспектів цього джерела"
 help_no_sync = "не отримувати списки одразу"
