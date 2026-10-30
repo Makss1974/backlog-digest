@@ -118,3 +118,22 @@ def test_wrapper_folder_and_broken_links_in_bookmarks(tmp_path):
 """, encoding="utf-8")
     links = web.read_links(path)   # зіпсоване посилання пропущено, обгортку прибрано
     assert [(lk.title, lk.list_name) for lk in links] == [("Top", ""), ("A", "База 1")]
+
+
+def test_folder_filter_and_counts():
+    links = [web.Link("https://e.com/1", "", "A"), web.Link("https://e.com/2", "", "A/B"),
+             web.Link("https://e.com/3", "", "AB"), web.Link("https://e.com/4", "", "")]
+    assert web.folder_counts(links) == {"": 4, "A": 2, "A/B": 1, "AB": 1}
+    assert [lk.url[-1] for lk in links if web.in_folders(lk.list_name, ["a"])] == ["1", "2"]   # «AB» — інша тека
+    assert all(web.in_folders(lk.list_name, []) for lk in links)
+    assert web.relative_list("Base/Sci/Phys", ["base/sci"]) == "Sci/Phys"
+    assert web.relative_list("Top/X", ["Top"]) == "Top/X"
+
+
+def test_note_dir_depth_and_length(tmp_path):
+    from backlog_digest import notes
+
+    d = notes.note_dir(tmp_path, "Src", "L1/L2/L3/L4/L5/L6")
+    assert d == tmp_path / "Src" / "L1" / "L2" / "L3" / "L4 · L5 · L6"
+    long = notes.note_dir(tmp_path, "Src", "/".join(["x" * 60] * 8))
+    assert len(long.relative_to(tmp_path).parts) < 5   # задовгий шлях — далі рівні зливаються

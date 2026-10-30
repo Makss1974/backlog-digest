@@ -41,8 +41,13 @@ def add_folder_source(conn: sqlite3.Connection, name: str, path: str, folder: st
     return db.add_source(conn, FOLDER, name, {"path": path}, folder or name)
 
 
-def add_web_source(conn: sqlite3.Connection, name: str, urls: list[str], files: list[str], folder: str = "") -> int:
-    return db.add_source(conn, WEB, name, {"urls": urls, "files": files}, folder or name)
+def add_web_source(conn: sqlite3.Connection, name: str, urls: list[str], files: list[str], folder: str = "",
+                   folders: list[str] | None = None) -> int:
+    """folders — лише ці теки закладок (з вкладеними); порожньо — усі."""
+    settings: dict[str, Any] = {"urls": urls, "files": files}
+    if folders:
+        settings["folders"] = folders
+    return db.add_source(conn, WEB, name, settings, folder or name)
 
 
 def add_raindrop_source(conn: sqlite3.Connection, name: str, collections: list[int], folder: str = "") -> int:
@@ -82,9 +87,11 @@ def _sync_web(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int
     його можна перезберегти з браузера — додадуться лише нові посилання."""
     settings = source["settings"]
     links = [web.Link(url) for url in settings.get("urls", [])]
+    chosen = settings.get("folders", [])   # вибрані теки закладок; порожньо — усі
     for file in settings.get("files", []):
         try:
-            links += web.read_links(Path(file))
+            links += [web.Link(lk.url, lk.title, web.relative_list(lk.list_name, chosen))
+                      for lk in web.read_links(Path(file)) if web.in_folders(lk.list_name, chosen)]
         except OSError as e:
             log(t("sync.file_error", path=file, detail=str(e)))
     return _add_links(conn, source, links, log)

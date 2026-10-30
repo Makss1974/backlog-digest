@@ -30,6 +30,8 @@ LABEL_KEYS = [
 _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f#^\[\]]')
 _RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 MAX_PATH = 240   # з запасом до межі Windows у 260 символів
+MAX_DIR_DEPTH = 5           # глибші теки (закладки бувають вкладені на 10+ рівнів) зливаються в останню
+MAX_DIR = MAX_PATH - 80     # решта — для назви нотатки
 
 
 def catalog_labels(lang: str) -> dict[str, str]:
@@ -81,12 +83,14 @@ def sanitize(name: str, max_len: int = 120, fallback: str = "_") -> str:
 
 
 def note_dir(root: Path, *parts: str) -> Path:
-    """<коренева тека>/<тека джерела>/<список>; тека джерела може бути вкладеною: «Відео/Наука»."""
+    """<коренева тека>/<тека джерела>/<список>; тека джерела може бути вкладеною: «Відео/Наука».
+    Не глибше MAX_DIR_DEPTH і не довше MAX_DIR: решта рівнів — в одній теці «Г · Ґ · Д»."""
+    pieces = [sanitize(p, 60) for part in parts for p in re.split(r"[/\\]", part or "") if p.strip()]
     d = root
-    for part in parts:
-        for piece in re.split(r"[/\\]", part or ""):
-            if piece.strip():
-                d = d / sanitize(piece)
+    for i, piece in enumerate(pieces):
+        if i == MAX_DIR_DEPTH - 1 or len(str(d / piece)) > MAX_DIR:
+            return d / sanitize(" · ".join(pieces[i:]), max(20, MAX_DIR - len(str(d)) - 1))
+        d = d / piece
     return d
 
 

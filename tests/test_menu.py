@@ -220,3 +220,25 @@ def test_relative_output_path_is_rejected(make_menu, monkeypatch, paths):
     feed(monkeypatch, ["8", "3", "relative/folder", "0", "", "q"])
     make_menu().run()
     assert not paths.config_file.exists()
+
+
+def test_add_bookmarks_with_folder_choice(make_menu, monkeypatch, tmp_path):
+    (tmp_path / "b.html").write_text("""<DL><p>
+<DT><H3>Base</H3><DL><p>
+  <DT><H3>Science</H3><DL><p>
+    <DT><H3>Physics</H3><DL><p><DT><A HREF="https://e.com/p">P</A></DL><p>
+    <DT><A HREF="https://e.com/s">S</A>
+  </DL><p>
+  <DT><H3>Home</H3><DL><p><DT><A HREF="https://e.com/h">H</A></DL><p>
+</DL><p>
+<DT><H3>Other</H3><DL><p><DT><A HREF="https://e.com/o">O</A></DL><p>
+</DL><p>""", encoding="utf-8")
+    m = make_menu()
+    # відкрити Base, вибрати Science (з Physics), спроба відкрити теку без ▸, назад, готово
+    feed(monkeypatch, ["2", "3", str(tmp_path / "b.html"), "", ">1", "2", ">1", "<", "", "", "", "0", "q"])
+    m.run()
+    [source] = db.list_sources(m.conn)
+    assert source["settings"].get("folders") == ["Base/Science"], source
+    assert source["name"] == "Science"
+    items = {tuple(r) for r in m.conn.execute("SELECT url, list_name FROM items")}
+    assert items == {("https://e.com/p", "Science/Physics"), ("https://e.com/s", "Science")}

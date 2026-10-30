@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -188,20 +189,74 @@ class Menu:
             print(t("sources.not_link_or_file", value=bad))
         if not urls and not files:
             return
+        links: list[web.Link] = []
+        for file in files:
+            try:
+                links += web.read_links(Path(file))
+            except OSError as e:
+                print(t("sync.file_error", path=file, detail=str(e)))
+        chosen = self.choose_folders(links)
         names = {s["name"] for s in db.list_sources(self.conn)}
-        base = t("sources.web_default_name")
+        base = chosen[0].rpartition("/")[2] if len(chosen) == 1 else t("sources.web_default_name")
         default = next(n for n in (f"{base} {i}" if i else base for i in range(100)) if n not in names)
         name = ask(f"{t('sources.name')} [{default}]: ") or default
         if name in names:
             print(t("sources.name_taken", name=name))
             return
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
-        sid = pipeline.add_web_source(self.conn, name, urls, files, folder)
+        sid = pipeline.add_web_source(self.conn, name, urls, files, folder, chosen)
         print(t("sources.added_web", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)
             print(t("sources.synced", new=new))
+
+    def choose_folders(self, links: list[web.Link]) -> list[str]:
+        """Вибір тек закладок, з переходом усередину тек. Повертає вибрані теки; [] — усі."""
+        counts = web.folder_counts(links)
+        if len(counts) <= 1:     # тек немає — вибирати нічого
+            return []
+        has_subs = {k.rpartition("/")[0] for k in counts if k}
+        chosen: list[str] = []
+        current = ""
+        while True:
+            subs = sorted((k for k in counts if k and k.rpartition("/")[0] == current), key=natural)
+            print(f"\n{t('web.folder_in', name=current or t('web.all_folders'), total=counts[current])}")
+            for i, k in enumerate(subs, 1):
+                mark = "✓ " if chosen and web.in_folders(k, chosen) else ""
+                more = " ▸" if k in has_subs else ""
+                print(f"  {i:>3}. {mark}{k.rpartition('/')[2]} ({counts[k]}){more}")
+            if chosen:
+                print(t("web.folders_chosen", n=len(chosen), links=sum(counts[c] for c in chosen)))
+            print(t("web.folders_help"))
+            raw = ask("  > ")
+            if not raw:
+                return chosen
+            if raw == "<":
+                current = current.rpartition("/")[0]
+            elif raw == "*":
+                if not current:
+                    return []
+                chosen = [c for c in chosen if not web.in_folders(c, [current])] + [current]
+            elif raw.startswith(">"):
+                n = int(raw[1:]) if raw[1:].strip().isdigit() else 0
+                if 1 <= n <= len(subs) and subs[n - 1] in has_subs:
+                    current = subs[n - 1]
+                else:
+                    print(t("web.bad_folder"))
+            else:
+                try:
+                    numbers = [int(x) for x in raw.replace(",", " ").split()]
+                except ValueError:
+                    numbers = [0]
+                if any(not 1 <= n <= len(subs) for n in numbers):
+                    print(t("web.bad_folder"))
+                    continue
+                for k in (subs[n - 1] for n in numbers):
+                    if k in chosen:
+                        chosen.remove(k)                  # повторний номер — зняти вибір
+                    elif not (chosen and web.in_folders(k, chosen)):   # уже вибрана батьківська — нічого
+                        chosen = [c for c in chosen if not web.in_folders(c, [k])] + [k]
 
     def add_raindrop(self) -> None:
         print(t("raindrop.help"))
@@ -453,6 +508,11 @@ def ask_int(prompt: str, default: int, lo: int, hi: int) -> int:
         if s.isdigit() and lo <= int(s) <= hi:
             return int(s)
         print(t("menu.enter_number", lo=lo, hi=hi))
+
+
+def natural(s: str) -> list[Any]:
+    """Сортування «як у людей»: «2. …» перед «10. …»."""
+    return [(0, int(x), "") if x.isdigit() else (1, 0, x.lower()) for x in re.split(r"(\d+)", s)]
 
 
 def ask_lines() -> list[str]:

@@ -83,7 +83,7 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         elif is_web:
             urls = [a for a in args.urls if web.is_url(a)]
             files = [str(Path(a).expanduser().resolve()) for a in args.urls if not web.is_url(a)]
-            sid = pipeline.add_web_source(conn, name, urls, files, args.folder or name)
+            sid = pipeline.add_web_source(conn, name, urls, files, args.folder or name, args.only)
             print(t("sources.added_web", name=name))
         else:
             sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
@@ -150,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--name", help=t("cli.help_name"))
     p.add_argument("--folder", help=t("cli.help_folder"))
     p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
+    p.add_argument("--only", action="append", default=[], metavar="FOLDER", help=t("cli.help_only"))
     sub.add_parser("sync", help=t("cli.help_sync"))
     for command in STAGES:
         p = sub.add_parser(command, help=t(f"cli.help_{command}"))

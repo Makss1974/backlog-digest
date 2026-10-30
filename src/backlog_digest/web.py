@@ -117,6 +117,35 @@ def read_links(path: Path) -> list[Link]:
     return out
 
 
+def in_folders(list_name: str, folders: list[str]) -> bool:
+    """Чи лежить посилання в одній із вибраних тек (разом із вкладеними). Порожній вибір — усі теки."""
+    if not folders:
+        return True
+    name = list_name.lower()
+    return any(name == f.lower() or name.startswith(f.lower() + "/") for f in folders)
+
+
+def relative_list(list_name: str, folders: list[str]) -> str:
+    """Назва списку від вибраної теки: «База/Наука/Фізика» при виборі «База/Наука» → «Наука/Фізика»."""
+    name = list_name.lower()
+    for f in sorted(folders, key=len, reverse=True):
+        if name == f.lower() or name.startswith(f.lower() + "/"):
+            parent = f.rpartition("/")[0]
+            return list_name[len(parent) + 1:] if parent else list_name
+    return list_name
+
+
+def folder_counts(links: list[Link]) -> dict[str, int]:
+    """Тека → скільки посилань у ній разом із вкладеними ("" — усі)."""
+    counts: dict[str, int] = {}
+    for link in links:
+        parts = link.list_name.split("/") if link.list_name else []
+        for depth in range(len(parts) + 1):
+            key = "/".join(parts[:depth])
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def _decodes(raw: bytes, enc: str) -> bool:
     try:
         raw.decode(enc)
