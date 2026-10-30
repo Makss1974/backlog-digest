@@ -1,7 +1,7 @@
 # backlog-digest
 
-> 🚧 Early stage — stage 2 of 7: YouTube playlists/channels → summaries in Obsidian / Markdown.
-> Рання стадія — етап 2 із 7: плейлисти й канали YouTube → конспекти в Obsidian / Markdown.
+> 🚧 Early stage — stage 3 of 7: YouTube playlists/channels and folders with books → summaries in Obsidian / Markdown.
+> Рання стадія — етап 3 із 7: плейлисти й канали YouTube, теки з книгами → конспекти в Obsidian / Markdown.
 
 **EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
 a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
@@ -89,6 +89,21 @@ python -m venv .venv
   uk/en/fr/es модель перекладає один раз, їх можна виправити у `note_labels/<код>.toml`;
 - відео без субтитрів отримують статус «без тексту» (розпізнавання мовлення — на пізніших етапах);
 - те саме відео в кількох списках конспектується один раз.
+
+### Книги й документи з папки (етап 3, частина 1)
+
+Меню → 2 Джерела → 2 Додати папку → повний шлях до теки (можна синхронізовану: Google Drive, OneDrive,
+Dropbox). Або командою: `.venv\Scripts\bdig add "D:\Книги"`. Підтеки першого рівня стають окремими списками.
+
+- Формати: PDF, EPUB, FB2 (і .fb2.zip), DOCX, ODT, RTF, HTML, TXT, MD — без додаткових програм;
+  DJVU — потрібна безкоштовна DjVuLibre; MOBI, AZW3, DOC — безкоштовна Calibre (`bdig doctor` покаже, чи знайдено).
+- Книги обробляються на кроці «конспекти» (меню → 3, режим 1 або 3; команда `bdig summarize`): YouTube
+  не потрібен, добовий ліміт субтитрів на них не діє.
+- Довга книга (понад `[models] max_chars` символів) читається частинами: спершу робочі нотатки кожної частини,
+  потім один підсумковий конспект. Нотатки частин зберігаються, тож після зупинки (скінчились ліміти моделей)
+  книга продовжиться з того місця; коли конспект готовий — вони видаляються.
+- Скан без текстового шару отримує статус «без тексту» (розпізнавання сканів — на пізніших етапах).
+- Та сама книга в кількох теках конспектується один раз; перейменований чи переміщений файл не стає новим.
 
 ### Де програма тримає файли
 

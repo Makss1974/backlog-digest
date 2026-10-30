@@ -147,11 +147,22 @@ def test_add_youtube_source_from_menu(make_menu, monkeypatch, capsys, fake_youtu
     assert i18n.t("sources.synced", new=1) in capsys.readouterr().out
 
 
+def test_add_folder_from_menu(make_menu, monkeypatch, tmp_path):
+    (tmp_path / "Lib" / "Sub").mkdir(parents=True)
+    (tmp_path / "Lib" / "Sub" / "b.md").write_text("Notes. " * 50, encoding="utf-8")
+    feed(monkeypatch, ["2", "2", str(tmp_path / "Nope"), "2", str(tmp_path / "Lib"), "", "", "0", "", "q"])
+    m = make_menu()
+    m.run()
+    [s] = db.list_sources(m.conn)
+    assert (s["type"], s["name"], s["output_dir"]) == ("folder", "Lib", "Lib")
+    assert m.conn.execute("SELECT list_name FROM items").fetchone()[0] == "Sub"
+
+
 def test_delete_source_from_menu(make_menu, monkeypatch):
     m = make_menu()
     sid = db.add_source(m.conn, "youtube", "Old")
     db.upsert_item(m.conn, sid, "k")
-    feed(monkeypatch, ["2", "3", "1", "yes", "0", "", "q"])
+    feed(monkeypatch, ["2", "4", "1", "yes", "0", "", "q"])
     m.run()
     assert db.list_sources(m.conn) == []
 

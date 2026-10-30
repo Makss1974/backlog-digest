@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import random
+import shutil
 import sqlite3
 import time
 from collections.abc import Callable
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, notes, summarize, youtube
+from . import db, folders, notes, readers, summarize, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
 from .paths import Paths
@@ -22,7 +23,8 @@ from .paths import Paths
 ALL, FETCH, SUMMARIZE = db.ALL, db.FETCH, db.SUMMARIZE
 
 YOUTUBE = "youtube"
-SOURCE_TYPES = (YOUTUBE,)
+FOLDER = "folder"
+SOURCE_TYPES = (YOUTUBE, FOLDER)
 
 Log = Callable[[str], None]
 
@@ -33,8 +35,37 @@ def add_youtube_source(conn: sqlite3.Connection, name: str, urls: list[str], fol
     return db.add_source(conn, YOUTUBE, name, {"urls": urls}, folder or name)
 
 
+def add_folder_source(conn: sqlite3.Connection, name: str, path: str, folder: str = "") -> int:
+    return db.add_source(conn, FOLDER, name, {"path": path}, folder or name)
+
+
 def sync_source(conn: sqlite3.Connection, source: dict[str, Any], log: Log = print) -> tuple[int, int]:
     """Оновлює список елементів джерела. Повертає (нових, усього в джерелі)."""
+    new = _sync_folder(conn, source, log) if source["type"] == FOLDER else _sync_youtube(conn, source, log)
+    total = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source["id"],)).fetchone()[0]
+    return new, int(total)
+
+
+def _sync_folder(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
+    root = Path(source["settings"].get("path", ""))
+    if not root.is_dir():
+        log(t("sync.folder_missing", path=str(root)))
+        return 0
+    added: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for pos, entry in enumerate(folders.scan(root, source["name"])):
+        total[entry.list_name] = total.get(entry.list_name, 0) + 1
+        if db.upsert_item(conn, source["id"], entry.key, entry.list_name, kind="text", title=entry.title,
+                          author=entry.format, path=str(entry.path), position=pos):
+            added[entry.list_name] = added.get(entry.list_name, 0) + 1
+    for name, n in total.items():
+        log(t("sync.list_done", name=name, total=n, new=added.get(name, 0)))
+    if not total:
+        log(t("sync.folder_empty", path=str(root)))
+    return sum(added.values())
+
+
+def _sync_youtube(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
     new = 0
     settings = source["settings"]
     for url in settings.get("urls", []):
@@ -52,8 +83,7 @@ def sync_source(conn: sqlite3.Connection, source: dict[str, Any], log: Log = pri
                 added += 1
         new += added
         log(t("sync.list_done", name=list_name, total=len(listing.entries), new=added))
-    total = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source["id"],)).fetchone()[0]
-    return new, int(total)
+    return new
 
 
 def sync_all(conn: sqlite3.Connection, log: Log = print) -> int:
@@ -188,6 +218,10 @@ class Processor:
             self.log("  " + t("process.reused"))
             return
 
+        if item["kind"] == "text":
+            if self._summarizing:
+                self._summarize_text(item, stats)
+            return
         if item["kind"] != "video":
             self._error(item, stats, t("process.unsupported", kind=item["kind"]))
             return
@@ -239,11 +273,73 @@ class Processor:
         self.log("  " + t("process.no_subtitles"))
 
     def _summarize(self, item: dict[str, Any], tr: youtube.Transcript, stats: RunStats) -> None:
-        system = summarize.system_prompt(self.language)
         user = summarize.user_prompt(item["title"] or "", item["author"] or "",
                                      youtube.format_duration(item["duration"]), tr.text, tr.language,
                                      tr.generated, self.cfg["models"]["max_chars"])
-        deep = self._deep(len(tr.text))
+        if self._finish(item, summarize.system_prompt(self.language), user, self._deep(len(tr.text)),
+                        tr.language, stats):
+            db.delete_transcript(self.conn, item["key"])   # конспект є — субтитри більше не потрібні
+
+    def _summarize_text(self, item: dict[str, Any], stats: RunStats) -> None:
+        """Книга чи документ: читаємо файл; довгий текст — частинами (нотатки частин кешуються на диску,
+        тож після зупинки книга продовжиться, а не почнеться заново), потім один підсумковий конспект."""
+        try:
+            text = readers.extract_text(Path(item["path"] or ""))
+        except readers.NoText as e:
+            db.mark_no_text(self.conn, item["id"], str(e))
+            stats.no_text += 1
+            self.log("  — " + str(e))
+            return
+        except (readers.ReadError, OSError) as e:
+            self._error(item, stats, t("process.read_error", detail=short(str(e), 200)))
+            return
+        chunks = readers.split_chunks(text, self.cfg["models"]["max_chars"])
+        self.log("  " + t("process.text", chars=len(text), format=item["author"] or "")
+                 + (" · " + t("process.parts", n=len(chunks)) if len(chunks) > 1 else ""))
+        deep = self._deep(len(text))
+        title, file_format = item["title"] or "", item["author"] or ""
+        cache = self.paths.cache_dir / "chunks" / item["key"].replace(":", "_")
+        if len(chunks) == 1:
+            user = summarize.text_prompt(title, file_format, text)
+        else:
+            parts = self._chunk_notes(item, chunks, cache, deep, stats)
+            if parts is None:
+                return
+            body = "\n\n".join(f"### Part {n}\n{note}" for n, note in enumerate(parts, 1))
+            user = summarize.text_prompt(title, file_format, body, from_chunks=len(chunks))
+        if self._finish(item, summarize.system_prompt(self.language, "text"), user, deep, None, stats):
+            shutil.rmtree(cache, ignore_errors=True)   # конспект є — нотатки частин більше не потрібні
+
+    def _chunk_notes(self, item: dict[str, Any], chunks: list[str], cache: Path, deep: bool,
+                     stats: RunStats) -> list[str] | None:
+        out = []
+        total = len(chunks)
+        for n, chunk in enumerate(chunks, 1):
+            cached = cache / f"{self.language}_{total}_{n:03d}.md"
+            if cached.exists():
+                out.append(cached.read_text(encoding="utf-8"))
+                self.log("  " + t("process.part_cached", n=n, total=total))
+                continue
+            self.log("  " + t("process.part", n=n, total=total))
+            try:
+                res = self.chain.complete(summarize.chunk_prompt(self.language),
+                                          summarize.chunk_user_prompt(item["title"] or "", n, total, chunk),
+                                          deep=deep, json_out=False)
+            except QuotaExhausted:
+                raise
+            except LLMError as e:
+                self._error(item, stats, t("process.model_error", detail=short(str(e), 200)))
+                return None
+            stats.tokens += res.tokens_in + res.tokens_out
+            note = res.text.strip()
+            cache.mkdir(parents=True, exist_ok=True)
+            cached.write_text(note, encoding="utf-8")
+            out.append(note)
+        return out
+
+    def _finish(self, item: dict[str, Any], system: str, user: str, deep: bool, source_language: str | None,
+                stats: RunStats) -> bool:
+        """Підсумковий конспект: запит до моделі, перевірка відповіді, запис нотатки. True — готово."""
         summary = None
         error = ""
         for _attempt in range(2):   # зламаний JSON — ще одна спроба з поясненням
@@ -254,7 +350,7 @@ class Processor:
                 raise
             except LLMError as e:
                 self._error(item, stats, t("process.model_error", detail=short(str(e), 200)))
-                return
+                return False
             stats.tokens += res.tokens_in + res.tokens_out
             try:
                 summary = summarize.parse_summary(res.text)
@@ -264,15 +360,16 @@ class Processor:
                 self.log("  " + t("process.bad_answer", model=res.model, detail=error))
         if summary is None:
             self._error(item, stats, t("process.bad_answer_final", detail=error))
-            return
-        db.save_result(self.conn, item["key"], self.language, summary, source_language=tr.language,
+            return False
+        db.save_result(self.conn, item["key"], self.language, summary, source_language=source_language,
                        model=res.model, tokens_in=res.tokens_in, tokens_out=res.tokens_out)
-        db.delete_transcript(self.conn, item["key"])   # конспект є — субтитри більше не потрібні
         path = self._write(item, summary)
         stats.done += 1
         self.log("  " + t("process.done", score=summary["score"],
-                          verdict=self.labels()[f"verdict_{summary['verdict']}"], model=res.model))
+                          verdict=notes.verdict_label(self.labels(), item["kind"], summary["verdict"]),
+                          model=res.model))
         self.log(f"  → {path}")
+        return True
 
     def _write(self, item: dict[str, Any], summary: dict[str, Any]) -> Path:
         source = self.sources.get(item["source_id"]) or {}
@@ -281,8 +378,8 @@ class Processor:
         path = Path(item["note_path"]) if item.get("note_path") else notes.note_path(
             directory, item["title"] or "", item["key"].split(":")[-1],
             lambda p: db.note_path_taken(self.conn, str(p), item["id"]))
-        content = notes.render_video_note(item, summary, self.labels(), language=self.language,
-                                          processed=db.now(), duration=youtube.format_duration(item["duration"]))
+        content = notes.render_note(item, summary, self.labels(), language=self.language,
+                                    processed=db.now(), duration=youtube.format_duration(item["duration"]))
         notes.write_note(path, content)
         db.mark_done(self.conn, item["id"], str(path))
         return path

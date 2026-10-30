@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 from typing import Any
 
 from . import __version__, config, db, doctor, i18n
@@ -64,12 +65,19 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
     from .menu import Menu
 
     if args.command == "add":
-        name = args.name or "YouTube"
+        # тека на диску — джерело «папка»; інакше — посилання YouTube
+        local = Path(args.urls[0]).expanduser()
+        is_folder = len(args.urls) == 1 and local.is_absolute() and local.is_dir()
+        name = args.name or (local.name if is_folder else "YouTube")
         if any(s["name"] == name for s in db.list_sources(conn)):
             print(t("sources.name_taken", name=name), file=sys.stderr)
             return 2
-        sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
-        print(t("sources.added", name=name))
+        if is_folder:
+            sid = pipeline.add_folder_source(conn, name, str(local), args.folder or name)
+            print(t("sources.added_folder", name=name))
+        else:
+            sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
+            print(t("sources.added", name=name))
         source = db.get_source(conn, sid)
         if source and not args.no_sync:
             print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))

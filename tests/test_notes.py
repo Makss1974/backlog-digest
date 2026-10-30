@@ -53,7 +53,7 @@ def test_frontmatter_is_yaml_compatible():
 @pytest.mark.parametrize("lang", i18n.UI_LANGUAGES)
 def test_render_uses_labels_of_summary_language(lang):
     labels = notes.catalog_labels(lang)
-    text = notes.render_video_note(ITEM, SUMMARY, labels, language=lang, processed="2026-10-29T10:00:00",
+    text = notes.render_note(ITEM, SUMMARY, labels, language=lang, processed="2026-10-29T10:00:00",
                                    duration="05:00")
     assert text.startswith("---\ntitle: ")
     assert f"# {ITEM['title']}" in text

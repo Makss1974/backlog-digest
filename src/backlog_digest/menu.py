@@ -114,17 +114,20 @@ class Menu:
                 kind = t(f"sources.type_{s['type']}")
                 print(f"  • {s['name']} ({kind}): {t('sources.counts', total=total, queued=queued or 0)}")
             print(f"\n  1. {t('sources.add_youtube')}")
-            print(f"  2. {t('sources.sync')}")
-            print(f"  3. {t('sources.delete')}")
+            print(f"  2. {t('sources.add_folder')}")
+            print(f"  3. {t('sources.sync')}")
+            print(f"  4. {t('sources.delete')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 3)
+            choice = ask_int(t("settings.choose"), 0, 0, 4)
             if choice == 0:
                 return
             if choice == 1:
                 self.add_youtube()
             elif choice == 2:
-                pipeline.sync_all(self.conn)
+                self.add_folder()
             elif choice == 3:
+                pipeline.sync_all(self.conn)
+            elif choice == 4:
                 self.delete_source(sources)
             print()
 
@@ -142,6 +145,29 @@ class Menu:
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
         sid = pipeline.add_youtube_source(self.conn, name, urls, folder)
         print(t("sources.added", name=name))
+        source = db.get_source(self.conn, sid)
+        if source:
+            new, _ = pipeline.sync_source(self.conn, source)
+            print(t("sources.synced", new=new))
+
+    def add_folder(self) -> None:
+        print(t("sources.folder_help"))
+        raw = ask(f"{t('settings.output_path')}: ").strip('"')
+        if not raw:
+            return
+        path = Path(raw).expanduser()
+        if not path.is_absolute() or not path.is_dir():
+            print(t("sources.folder_not_found", path=raw))
+            return
+        names = {s["name"] for s in db.list_sources(self.conn)}
+        default = path.name or str(path)
+        name = ask(f"{t('sources.name')} [{default}]: ") or default
+        if name in names:
+            print(t("sources.name_taken", name=name))
+            return
+        folder = ask(f"{t('sources.folder')} [{name}]: ") or name
+        sid = pipeline.add_folder_source(self.conn, name, str(path), folder)
+        print(t("sources.added_folder", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)

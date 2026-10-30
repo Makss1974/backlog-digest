@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+import samples
 from backlog_digest import config, db, llm, pipeline, youtube
 
 GOOD = json.dumps({
@@ -270,6 +271,47 @@ def test_quota_keeps_collecting_subtitles(env):
     stats = env.make(FakeChain([llm.QuotaExhausted("all")])).run(limit=10)
     assert (stats.stopped, stats.done, stats.fetched) == ("quota", 0, 3)
     assert db.stage_counts(env.conn, "en") == (0, 3)
+
+
+# ---------------------------------------------------------------- папки й книги
+
+@pytest.fixture
+def books(env, tmp_path):
+    root = tmp_path / "Books"
+    (root / "Science").mkdir(parents=True)
+    samples.pdf(root / "Science" / "Sleep.pdf", [samples.PARA, samples.PARA])
+    samples.pdf(root / "Scan.pdf", [""])
+    (root / "Broken.epub").write_bytes(b"not a zip")
+    sid = pipeline.add_folder_source(env.conn, "Library", str(root), "Books")
+    pipeline.sync_source(env.conn, db.get_source(env.conn, sid), env.logs.append)
+    return root
+
+
+def test_folder_books_are_summarized_without_youtube(env, books, monkeypatch):
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, langs: pytest.fail("no YouTube for books"))
+    assert db.stage_counts(env.conn, "en") == (0, 3)              # книги не чекають «збору субтитрів»
+    chain = FakeChain([GOOD.replace('"summary_enough"', '"watch"')])
+    stats = env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE)
+    assert (stats.done, stats.no_text, stats.errors) == (1, 1, 1)  # книга / скан / пошкоджений файл
+    assert "[p. 2]" in chain.calls[0] and "Format: PDF" in chain.calls[0]
+    note = (env.root / "Books" / "Science" / "Sleep.md").read_text(encoding="utf-8")
+    assert "Read it" in note and "Open the file" in note and '"format": "PDF"' not in note
+    assert 'format: "PDF"' in note and "file:///" in note
+
+
+def test_long_book_is_read_in_parts_and_resumes_after_quota(env, books):
+    env.cfg["models"]["max_chars"] = 400                           # дві сторінки по ~300 символів — дві частини
+    chain = FakeChain(["notes of part 1", llm.QuotaExhausted("all")])
+    stats = env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE)
+    assert (stats.stopped, stats.done) == ("quota", 0)
+    cache = env.make().paths.cache_dir / "chunks"
+    assert len(list(cache.rglob("*.md"))) == 1                     # перша частина збережена
+
+    chain = FakeChain(["notes of part 2", GOOD])
+    stats = env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE)
+    assert stats.done == 1 and len(chain.calls) == 2               # першу частину не перепитували
+    assert "notes of part 1" in chain.calls[1] and "notes of part 2" in chain.calls[1]
+    assert "2 parts" in chain.calls[1] and not list(cache.rglob("*.md"))   # кеш частин прибрано
 
 
 def test_known_missing_subtitles_apply_to_the_same_video_elsewhere(env):

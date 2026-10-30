@@ -20,8 +20,9 @@ from .paths import Paths
 
 LABEL_KEYS = [
     "about", "key_points", "useful", "grounding", "evidence_level", "recommendations", "questionable",
-    "water", "audience", "verdict", "score", "open_youtube", "untitled",
+    "water", "audience", "verdict", "score", "open_youtube", "open_file", "untitled",
     "verdict_watch", "verdict_partial", "verdict_summary_enough", "verdict_skip",
+    "verdict_read", "verdict_read_partial",
     "evidence_high", "evidence_medium", "evidence_low", "evidence_unscientific",
 ]
 
@@ -119,20 +120,34 @@ def frontmatter(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_video_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str], *, language: str,
-                      processed: str, duration: str) -> str:
+def verdict_label(labels: dict[str, str], kind: str, verdict: str) -> str:
+    """Вердикт словами: для текстів «Читати» / «Прочитати частину» замість «Дивитися» / «Переглянути частину»."""
+    if kind != "video" and verdict in ("watch", "partial"):
+        return labels["verdict_read" if verdict == "watch" else "verdict_read_partial"]
+    return labels[f"verdict_{verdict}"]
+
+
+def render_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str], *, language: str,
+                processed: str, duration: str = "") -> str:
     L = labels
-    verdict = L[f"verdict_{s['verdict']}"]
+    kind = item.get("kind") or "video"
+    verdict = verdict_label(L, kind, s["verdict"])
     evidence = L[f"evidence_{s['evidence']}"]
     stars = "★" * s["score"] + "☆" * (5 - s["score"])
-    url = item.get("url") or ""
-    channel = item.get("author") or ""
-    head = " · ".join(x for x in (channel, duration, f"[{L['open_youtube']}]({url})" if url else "") if x)
+    if kind == "video":
+        url = item.get("url") or ""
+        channel = item.get("author") or ""
+        head = " · ".join(x for x in (channel, duration, f"[{L['open_youtube']}]({url})" if url else "") if x)
+        meta: dict[str, Any] = {"url": url, "channel": channel, "duration": duration}
+    else:
+        file = item.get("path") or ""
+        file_format = item.get("author") or ""
+        link = f"[{L['open_file']}](<{Path(file).as_uri()}>)" if file and Path(file).is_absolute() else ""
+        head = " · ".join(x for x in (s.get("book_title") or "", file_format, link) if x)
+        meta = {"book": s.get("book_title") or "", "file": file, "format": file_format}
     front = frontmatter({
         "title": item.get("title") or "",
-        "url": url,
-        "channel": channel,
-        "duration": duration,
+        **meta,
         "list": item.get("list_name") or "",
         "score": s["score"],
         "verdict": verdict,

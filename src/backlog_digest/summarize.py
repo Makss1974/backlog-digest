@@ -72,6 +72,54 @@ Answer with ONE JSON object only, no explanations and no ```, strictly following
   "tags": ["3-7 short lowercase tags in {language}"]
 }}"""
 
+def _text_prompt(video_prompt: str) -> str:
+    """Той самий промпт для книг, статей і документів: ті самі критерії, інші слова й поле book_title."""
+    swaps = [
+        ("summarizes YouTube videos so that a person can decide whether the video is worth watching",
+         "summarizes books, articles and documents so that a person can decide whether they are worth reading"),
+        ("regardless of the language of the video", "regardless of the language of the text"),
+        ("useful content per minute", "useful content per page"),
+        ("an average YouTube video = 3", "an average popular book or article = 3"),
+        ("you won't find in a typical video. At most ~1 in 10 videos.",
+         "you won't find in a typical book. At most ~1 in 10."),
+        ("in an otherwise normal video", "in an otherwise normal text"),
+        ('"watch": high value AND the video itself gives more than the summary (demonstrations, nuances, '
+         'examples).',
+         '"watch" (here it means: read it): high value AND the text itself gives much more than the summary '
+         '(argumentation, examples, exercises).'),
+        ("only some fragments are valuable — name them with timestamps.",
+         "only some chapters or sections are valuable — name them."),
+        ("no need to watch.", "no need to read."),
+        ("what the video is about", "what this text or book is about"),
+        ("with timestamps [mm:ss] if possible", "name chapters or pages [p. N] if possible"),
+        ("who this video is for", "who this text is for"),
+        ('for \\"partial\\" name the fragments (timestamps)', 'for \\"partial\\" name the chapters'),
+    ]
+    p = video_prompt
+    for old, new in swaps:
+        if old not in p:
+            raise AssertionError(f"text prompt swap not found: {old}")
+        p = p.replace(old, new)
+    return p + """
+
+For a book, key_points may be grouped by chapter ("Chapter N: ..."), up to 25 points if the book is dense.
+Add one more JSON field "book_title": "Title — Author(s), year" in the original language, as seen in the text \
+("" if unknown).
+questionable_claims are only what the author CLAIMS, not topics or other people's views the author merely \
+describes or discusses."""
+
+
+TEXT_SYSTEM_PROMPT = _text_prompt(SYSTEM_PROMPT)
+
+CHUNK_PROMPT = """You are reading one part of a long text (a book or a document) and making working notes \
+for a final summary later. Write in {language}, as a bulleted list, without introductions:
+- key ideas, facts, numbers, arguments (in detail, with chapter names if there are any);
+- concrete practical recommendations;
+- what the author relies on (research, data, experience);
+- questionable or unscientific claims (mark them with "⚠️");
+- the approximate share of filler in this part.
+Do not invent anything: only what is in the text."""
+
 RETRY_NOTE = ("\n\nYour previous answer could not be parsed ({error}). "
               "Answer again with exactly one valid JSON object following the schema.")
 
@@ -85,8 +133,25 @@ def language_name(code: str) -> str:
     return f"{name} (language code: {code})" if name else f"the language with code \"{code}\""
 
 
-def system_prompt(language: str) -> str:
-    return SYSTEM_PROMPT.format(language=language_name(language))
+def system_prompt(language: str, kind: str = "video") -> str:
+    template = SYSTEM_PROMPT if kind == "video" else TEXT_SYSTEM_PROMPT
+    return template.format(language=language_name(language))
+
+
+def chunk_prompt(language: str) -> str:
+    return CHUNK_PROMPT.format(language=language_name(language))
+
+
+def text_prompt(title: str, file_format: str, body: str, from_chunks: int = 0) -> str:
+    head = f"Title: {title}\nFormat: {file_format}\n"
+    if from_chunks:
+        return head + (f"The text is long, so below are working notes from its {from_chunks} parts, in order. "
+                       f"Make one final summary from them.\n\nNOTES OF THE PARTS:\n{body}")
+    return head + f"\nTEXT:\n{body}"
+
+
+def chunk_user_prompt(title: str, n: int, total: int, chunk: str) -> str:
+    return f"Title: {title}\nPart {n} of {total}:\n\n{chunk}"
 
 
 def user_prompt(title: str, channel: str, duration: str, transcript: str, transcript_lang: str,
@@ -120,6 +185,7 @@ def parse_summary(text: str) -> dict[str, Any]:
         "verdict_reason": _str(data.get("verdict_reason")),
         "score": _int(data.get("score"), 1, 5, 3),
         "tags": [tg for tg in (_tag(x) for x in _list(data.get("tags"))) if tg][:7],
+        "book_title": _str(data.get("book_title")),   # лише для текстів; у відео — порожньо
     }
     if out["evidence"] == "unscientific":   # правило «в топку» не залежить від ввічливості моделі
         out["score"] = min(out["score"], 2)

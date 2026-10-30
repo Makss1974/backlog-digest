@@ -75,6 +75,20 @@ def test_help_is_translated(capsys, lang):
     assert {"uk": "перевірити", "fr": "vérifier"}[lang] in out
 
 
+def test_add_folder_command(paths, capsys, tmp_path):
+    from backlog_digest import db
+    from samples import PARA
+
+    (tmp_path / "Books").mkdir()
+    (tmp_path / "Books" / "a.txt").write_text(PARA, encoding="utf-8")
+    assert cli.main(["add", str(tmp_path / "Books")]) == 0
+    conn = db.connect(paths.db_file)
+    [source] = db.list_sources(conn)
+    assert (source["type"], source["name"], source["settings"]["path"]) == ("folder", "Books", str(tmp_path / "Books"))
+    assert db.status_counts(conn)[db.NEW] == 1
+    conn.close()
+
+
 def test_add_sync_process_commands(paths, monkeypatch, capsys, tmp_path):
     from backlog_digest import pipeline, youtube
 
