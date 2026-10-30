@@ -53,13 +53,13 @@ def _sync_folder(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> 
         return 0
     added: dict[str, int] = {}
     total: dict[str, int] = {}
-    for pos, entry in enumerate(folders.scan(root, source["name"])):
+    for pos, entry in enumerate(folders.scan(root)):
         total[entry.list_name] = total.get(entry.list_name, 0) + 1
         if db.upsert_item(conn, source["id"], entry.key, entry.list_name, kind="text", title=entry.title,
                           author=entry.format, path=str(entry.path), position=pos):
             added[entry.list_name] = added.get(entry.list_name, 0) + 1
     for name, n in total.items():
-        log(t("sync.list_done", name=name, total=n, new=added.get(name, 0)))
+        log(t("sync.list_done", name=name or source["name"], total=n, new=added.get(name, 0)))
     if not total:
         log(t("sync.folder_empty", path=str(root)))
     return sum(added.values())
@@ -189,7 +189,7 @@ class Processor:
                 continue
             if not needs_fetch and not self._summarizing:   # той самий ролик в іншому списку — уже зібрано
                 continue
-            self.log(f"\n[{i}/{len(rows)}] {item['title']}  ({item['list_name']})")
+            self.log(f"\n[{i}/{len(rows)}] {item['title']}" + (f"  ({item['list_name']})" if item["list_name"] else ""))
             try:
                 self._process(item, text, saved, stats)
             except youtube.BlockedError as e:

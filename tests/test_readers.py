@@ -88,9 +88,9 @@ def test_folder_scan_lists_and_content_keys(tmp_path):
     (root / "Science" / "c.txt").write_text(PARA + "!", encoding="utf-8")
     (root / "Science" / "song.mp3").write_bytes(b"x")                     # аудіо — пізніші етапи
     (root / "~$lock.docx").write_bytes(b"x")                              # службовий файл Word
-    entries = list(folders.scan(root, "Books"))
+    entries = list(folders.scan(root))
     assert [(e.list_name, e.title, e.format) for e in entries] == [
-        ("Books", "a", "TXT"), ("Science", "b", "TXT"), ("Science", "c", "TXT")]
+        ("", "a", "TXT"), ("Science", "b", "TXT"), ("Science", "c", "TXT")]
     assert entries[0].key == entries[1].key != entries[2].key
     (root / "a.txt").rename(root / "renamed.txt")
-    assert next(folders.scan(root, "Books")).key == entries[0].key        # перейменування — не новий файл
+    assert next(folders.scan(root)).key == entries[0].key        # перейменування — не новий файл

@@ -104,7 +104,7 @@ def _text_prompt(video_prompt: str) -> str:
 
 For a book, key_points may be grouped by chapter ("Chapter N: ..."), up to 25 points if the book is dense.
 Add one more JSON field "book_title": "Title — Author(s), year" in the original language, as seen in the text \
-("" if unknown).
+("" if unknown; leave out any part you do not know, never write "Unknown").
 questionable_claims are only what the author CLAIMS, not topics or other people's views the author merely \
 describes or discusses."""
 

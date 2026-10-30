@@ -1,6 +1,6 @@
 """Джерело «папка»: локальна тека або синхронізована хмарна (Google Drive, OneDrive, Dropbox).
 
-Список елемента — підтека першого рівня (файли в корені — назва джерела).
+Список елемента — підтека першого рівня; у файлів з кореня теки списку немає (нотатки — просто в теці джерела).
 Ключ елемента — від вмісту файлу (розмір + початок), а не від шляху: та сама книга в двох теках
 конспектується один раз, а перейменований чи переміщений файл не стає новим.
 """
@@ -32,7 +32,7 @@ def file_key(path: Path) -> str:
     return "file:" + h.hexdigest()[:20]
 
 
-def scan(folder: Path, default_list: str) -> Iterator[FileEntry]:
+def scan(folder: Path) -> Iterator[FileEntry]:
     """Усі підтримувані файли теки (рекурсивно), у сталому порядку."""
     files = sorted((p for p in folder.rglob("*") if p.is_file() and readers.is_supported(p)
                     and not p.name.startswith((".", "~$"))),
@@ -43,5 +43,5 @@ def scan(folder: Path, default_list: str) -> Iterator[FileEntry]:
             key = file_key(path)
         except OSError:   # файл зайнятий чи ще синхронізується — візьмемо наступного разу
             continue
-        yield FileEntry(key, path, rel.parts[0] if len(rel.parts) > 1 else default_list,
+        yield FileEntry(key, path, rel.parts[0] if len(rel.parts) > 1 else "",
                         readers.title_of(path), readers.file_ext(path).lstrip(".").upper())
