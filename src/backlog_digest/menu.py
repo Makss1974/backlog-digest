@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, raindrop, web
+from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, raindrop, runstate, shortcut, web
 from .i18n import t
 from .paths import Paths
 
@@ -39,8 +39,12 @@ class Menu:
         ]
 
     def run(self) -> None:
+        set_window_title(t("app.title", version=__version__))
         while True:
-            print(f"\n{LINE}\n  {t('app.title', version=__version__)} — {self.queue_line()}\n{LINE}")
+            print(f"\n{LINE}")
+            for line in self.panel():
+                print(f"  {line}")
+            print(LINE)
             items = self.items()
             for key, title, _ in items:
                 print(f"  {key:>2}. {title}")
@@ -66,6 +70,44 @@ class Menu:
                 print(f"\n{t('menu.interrupted')}")
             except EOFError:
                 return
+
+    def panel(self) -> list[str]:
+        """Панель над меню: усе головне одним поглядом — черга, субтитри, джерела, моделі, що працює."""
+        lines = [f"{t('app.title', version=__version__)} — {self.queue_line()}"]
+        counts = db.status_counts(self.conn)
+        language = self.cfg["general"]["summary_language"]
+        to_fetch, to_summarize = db.stage_counts(self.conn, language) if sum(counts.values()) else (0, 0)
+        work = []
+        if to_fetch:
+            work.append(t("panel.subtitles", n=to_fetch, today=db.fetched_today(self.conn),
+                          per_day=self.cfg["limits"]["per_day"]))
+        if to_summarize:
+            work.append(t("panel.to_summarize", n=to_summarize))
+        if counts[db.NO_TEXT]:
+            work.append(t("panel.no_text", n=counts[db.NO_TEXT]))
+        if counts[db.FAILED]:
+            work.append(t("panel.failed", n=counts[db.FAILED]))
+        if work:
+            lines.append(" · ".join(work))
+        sources = db.list_sources(self.conn)
+        by_type: dict[str, int] = {}
+        for s in sources:
+            by_type[s["type"]] = by_type.get(s["type"], 0) + 1
+        kinds = ", ".join(f"{t(f'sources.type_{k}')} {n}" for k, n in by_type.items())
+        where = self.cfg["output"]["path"]
+        lines.append(t("panel.sources", n=len(sources), kinds=f" ({kinds})" if kinds else "") + " · "
+                     + (t("panel.output", path=where) if where else t("panel.no_output")))
+        models, used = llm.model_status(self.cfg, self.paths)
+        if not models:
+            lines.append(t("panel.no_models"))
+        else:
+            lines.append(t("panel.models", active=len(models) - len(used), total=len(models))
+                         + (" · " + t("panel.exhausted", names=", ".join(used)) if used else ""))
+        running = runstate.current(self.paths)
+        if running:
+            lines.append(t("panel.running", stage=t(f"panel.stage_{running.get('stage', 'all')}"),
+                           since=str(running.get("started", ""))[11:16]))
+        return lines
 
     def queue_line(self) -> str:
         counts = db.status_counts(self.conn)
@@ -369,8 +411,9 @@ class Menu:
             print(f"  4. {t('settings.model_keys')}")
             print(f"  5. {t('settings.show_paths')}")
             print(f"  6. {t('settings.open_config_dir')}")
+            print(f"  7. {t('settings.shortcut')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 6)
+            choice = ask_int(t("settings.choose"), 0, 0, 7)
             if choice == 0:
                 return
             if choice == 1:
@@ -385,6 +428,8 @@ class Menu:
                 self.show_paths()
             elif choice == 6:
                 open_path(self.paths.config_dir)
+            elif choice == 7:
+                make_shortcut(self.paths)
             print()
 
     def choose_output(self) -> bool:
@@ -513,6 +558,28 @@ def ask_int(prompt: str, default: int, lo: int, hi: int) -> int:
 def natural(s: str) -> list[Any]:
     """Сортування «як у людей»: «2. …» перед «10. …»."""
     return [(0, int(x), "") if x.isdigit() else (1, 0, x.lower()) for x in re.split(r"(\d+)", s)]
+
+
+def make_shortcut(paths: Paths) -> bool:
+    try:
+        link = shortcut.create(paths, shortcut.NAME)
+    except (shortcut.ShortcutError, OSError, subprocess.SubprocessError) as e:
+        print(t("settings.shortcut_failed", detail=str(e)))
+        return False
+    print(t("settings.shortcut_done", path=str(link)))
+    return True
+
+
+def set_window_title(title: str) -> None:
+    """Назва вікна консолі — щоб його легко знайти серед інших вікон."""
+    if not sys.stdout.isatty():
+        return
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetConsoleTitleW(title)  # type: ignore[attr-defined,unused-ignore]
+    else:
+        print(f"\033]0;{title}\007", end="", flush=True)
 
 
 def ask_lines() -> list[str]:

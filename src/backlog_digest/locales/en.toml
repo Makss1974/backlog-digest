@@ -73,6 +73,9 @@ checking_key = "Checking the key..."
 key_ok = "✓ The key works."
 key_bad = "✗ The key check failed: {detail}"
 save_anyway = "Save it anyway?"
+shortcut = "Create a desktop shortcut (the program in its own window)"
+shortcut_done = "Shortcut created: {path}\nDouble-click it to open the program in its own window."
+shortcut_failed = "Could not create the shortcut: {detail}"
 
 [answers]
 yes = ["y", "yes"]
@@ -291,6 +294,22 @@ http_error = "the server answered with error {code}"
 network_error = "network error: {detail}"
 api_error = "error: {detail}"
 
+[panel]
+subtitles = "waiting for subtitles: {n} ({today} of {per_day} collected today)"
+to_summarize = "ready to summarize: {n}"
+no_text = "no text: {n}"
+failed = "failed: {n}"
+sources = "Sources: {n}{kinds}"
+output = "summaries → {path}"
+no_output = "no folder for summaries yet (8 → 3)"
+models = "Models: {active} of {total} available"
+exhausted = "today's limit used up: {names}"
+no_models = "Models: no key — summaries will not be made (8 → 4)"
+running = "▶ Running now: {stage}, since {since} (another window or the schedule)"
+stage_all = "subtitles and summaries"
+stage_fetch = "collecting subtitles"
+stage_summarize = "summaries"
+
 [plural.items]
 one = "{n} item"
 other = "{n} items"
@@ -325,3 +344,4 @@ help_source = "only this source (number)"
 help_fetch = "only collect subtitles (slow; no models needed)"
 help_summarize = "only summaries from already collected subtitles (no YouTube)"
 help_only = "only this bookmarks folder with subfolders, e.g. \"Base/Science\" (can be repeated)"
+help_shortcut = "create a desktop shortcut: the program in its own window"

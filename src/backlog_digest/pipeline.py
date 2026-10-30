@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, keys, notes, raindrop, readers, summarize, web, youtube
+from . import db, folders, keys, notes, raindrop, readers, runstate, summarize, web, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
 from .paths import Paths, get_paths
@@ -231,6 +231,13 @@ class Processor:
     # -- головний цикл
 
     def run(self, limit: int, source_id: int | None = None, stage: str = ALL) -> RunStats:
+        runstate.start(self.paths, stage, db.now())   # меню в іншому вікні побачить, що обробка йде
+        try:
+            return self._run(limit, source_id, stage)
+        finally:
+            runstate.finish(self.paths)
+
+    def _run(self, limit: int, source_id: int | None, stage: str) -> RunStats:
         """Обробка черги. stage: fetch — лише зібрати тексти (повільно, з вашої IP, моделі не потрібні);
         summarize — лише конспекти з уже зібраного (YouTube не потрібен); all — обидва кроки поспіль.
         У режимі all блокування YouTube не зупиняє конспекти з уже зібраного, а вичерпані моделі — збір."""

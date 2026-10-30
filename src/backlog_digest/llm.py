@@ -280,5 +280,18 @@ class Chain:
                          int(usage.get("completion_tokens") or 0))
 
 
+def model_status(cfg: dict[str, Any], paths: Paths) -> tuple[list[str], list[str]]:
+    """(моделі з ключем, з них вичерпані на сьогодні) — для панелі меню, без звернень до мережі."""
+    names = [f"{p.name}/{m}" for p in providers_from_config(cfg["models"])
+             if not p.key_env or keys.get_secret(p.key_env, paths) for m in p.models]
+    state_path = paths.data_dir / "quota.json"
+    try:
+        st = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+    except (ValueError, OSError):
+        st = {}
+    used = set(st.get("exhausted", [])) if st.get("day") == quota_day() else set()
+    return names, [n for n in names if n in used]
+
+
 def short(s: str, n: int = 300) -> str:
     return " ".join(s.split())[:n]

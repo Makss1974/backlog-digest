@@ -73,6 +73,9 @@ checking_key = "Vérification de la clé..."
 key_ok = "✓ La clé fonctionne."
 key_bad = "✗ La vérification de la clé a échoué : {detail}"
 save_anyway = "L'enregistrer quand même ?"
+shortcut = "Créer un raccourci sur le bureau (le programme dans sa propre fenêtre)"
+shortcut_done = "Raccourci créé : {path}\nDouble-cliquez pour ouvrir le programme dans sa propre fenêtre."
+shortcut_failed = "Impossible de créer le raccourci : {detail}"
 
 [answers]
 yes = ["o", "oui", "y", "yes"]
@@ -291,6 +294,22 @@ http_error = "le serveur a répondu par l'erreur {code}"
 network_error = "erreur réseau : {detail}"
 api_error = "erreur : {detail}"
 
+[panel]
+subtitles = "en attente de sous-titres : {n} ({today} sur {per_day} récupérés aujourd'hui)"
+to_summarize = "prêts à résumer : {n}"
+no_text = "sans texte : {n}"
+failed = "échecs : {n}"
+sources = "Sources : {n}{kinds}"
+output = "résumés → {path}"
+no_output = "aucun dossier pour les résumés (8 → 3)"
+models = "Modèles : {active} sur {total} disponibles"
+exhausted = "limite du jour atteinte : {names}"
+no_models = "Modèles : aucune clé — pas de résumés (8 → 4)"
+running = "▶ En cours : {stage}, depuis {since} (autre fenêtre ou planification)"
+stage_all = "sous-titres et résumés"
+stage_fetch = "récupération des sous-titres"
+stage_summarize = "résumés"
+
 [plural.items]
 one = "{n} élément"
 other = "{n} éléments"
@@ -325,3 +344,4 @@ help_source = "seulement cette source (numéro)"
 help_fetch = "seulement récupérer les sous-titres (lent ; sans modèles)"
 help_summarize = "seulement les résumés à partir des sous-titres déjà récupérés (sans YouTube)"
 help_only = "seulement ce dossier de favoris et ses sous-dossiers, p. ex. \"Base/Science\" (répétable)"
+help_shortcut = "créer un raccourci sur le bureau : le programme dans sa propre fenêtre"

@@ -73,6 +73,9 @@ checking_key = "Comprobando la clave..."
 key_ok = "✓ La clave funciona."
 key_bad = "✗ La comprobación de la clave falló: {detail}"
 save_anyway = "¿Guardarla de todos modos?"
+shortcut = "Crear un acceso directo en el escritorio (el programa en su propia ventana)"
+shortcut_done = "Acceso directo creado: {path}\nDoble clic para abrir el programa en su propia ventana."
+shortcut_failed = "No se pudo crear el acceso directo: {detail}"
 
 [answers]
 yes = ["s", "sí", "si", "y", "yes"]
@@ -291,6 +294,22 @@ http_error = "el servidor respondió con el error {code}"
 network_error = "error de red: {detail}"
 api_error = "error: {detail}"
 
+[panel]
+subtitles = "esperando subtítulos: {n} ({today} de {per_day} obtenidos hoy)"
+to_summarize = "listos para resumir: {n}"
+no_text = "sin texto: {n}"
+failed = "fallidos: {n}"
+sources = "Fuentes: {n}{kinds}"
+output = "resúmenes → {path}"
+no_output = "sin carpeta para los resúmenes (8 → 3)"
+models = "Modelos: {active} de {total} disponibles"
+exhausted = "límite de hoy agotado: {names}"
+no_models = "Modelos: sin clave — no se harán resúmenes (8 → 4)"
+running = "▶ En marcha: {stage}, desde {since} (otra ventana o la programación)"
+stage_all = "subtítulos y resúmenes"
+stage_fetch = "obtención de subtítulos"
+stage_summarize = "resúmenes"
+
 [plural.items]
 one = "{n} elemento"
 other = "{n} elementos"
@@ -325,3 +344,4 @@ help_source = "solo esta fuente (número)"
 help_fetch = "solo obtener los subtítulos (lento; sin modelos)"
 help_summarize = "solo resúmenes de los subtítulos ya obtenidos (sin YouTube)"
 help_only = "solo esta carpeta de marcadores con subcarpetas, p. ej. \"Base/Ciencia\" (se puede repetir)"
+help_shortcut = "crear un acceso directo en el escritorio: el programa en su propia ventana"

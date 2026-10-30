@@ -1,5 +1,5 @@
 """Точка входу: backlog-digest / bdig [--lang uk|en|fr|es]
-[menu | doctor | add | sync | process | fetch | summarize]."""
+[menu | doctor | add | sync | process | fetch | summarize | shortcut]."""
 from __future__ import annotations
 
 import argparse
@@ -35,6 +35,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return doctor.run(paths, network=not args.offline)
+    if args.command == "shortcut":
+        from .menu import make_shortcut
+
+        return 0 if make_shortcut(paths) else 1
 
     if cfg_error or cfg is None:
         print(t("cli.config_error", error=cfg_error.message() if cfg_error else ""), file=sys.stderr)
@@ -152,6 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
     p.add_argument("--only", action="append", default=[], metavar="FOLDER", help=t("cli.help_only"))
     sub.add_parser("sync", help=t("cli.help_sync"))
+    sub.add_parser("shortcut", help=t("cli.help_shortcut"))
     for command in STAGES:
         p = sub.add_parser(command, help=t(f"cli.help_{command}"))
         p.add_argument("--limit", type=int, help=t("cli.help_limit"))
