@@ -29,6 +29,8 @@ RAINDROP = "raindrop"
 SOURCE_TYPES = (YOUTUBE, FOLDER, WEB, RAINDROP)
 
 Log = Callable[[str], None]
+PROGRESS_EVERY = 1000   # великі списки: повідомлення про хід роботи й збереження кожну тисячу
+MAX_LISTS_SHOWN = 30
 
 
 # ---------------------------------------------------------------- джерела
@@ -103,8 +105,14 @@ def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
     if not token:
         log(t("raindrop.no_token"))
         return 0
+    log(t("sync.raindrop_reading"))
+
+    def progress(n: int) -> None:
+        if n % PROGRESS_EVERY < raindrop.PER_PAGE:   # приблизно раз на PROGRESS_EVERY закладок
+            log(t("sync.read_progress", n=n))
+
     try:
-        links = raindrop.links(token, source["settings"].get("collections") or None)
+        links = raindrop.links(token, source["settings"].get("collections") or None, progress)
     except raindrop.RaindropError as e:
         log(t("sync.raindrop_error", detail=str(e)))
         return 0
@@ -114,15 +122,27 @@ def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
 def _add_links(conn: sqlite3.Connection, source: dict[str, Any], links: list[web.Link], log: Log) -> int:
     added: dict[str, int] = {}
     total: dict[str, int] = {}
+    big = len(links) > PROGRESS_EVERY
     for pos, link in enumerate(links):
         key, kind = web.item_key(link.url)
         url = youtube.WATCH_URL.format(key.removeprefix("youtube:")) if kind == "video" else link.url
         total[link.list_name] = total.get(link.list_name, 0) + 1
-        if db.upsert_item(conn, source["id"], key, link.list_name, kind=kind, url=url, position=pos,
+        if db.upsert_item(conn, source["id"], key, link.list_name, commit=False, kind=kind, url=url, position=pos,
                           **({"title": link.title} if link.title else {})):
             added[link.list_name] = added.get(link.list_name, 0) + 1
-    for name, n in total.items():
-        log(t("sync.list_done", name=name or source["name"], total=n, new=added.get(name, 0)))
+        if (pos + 1) % PROGRESS_EVERY == 0:
+            conn.commit()   # зупинка посередині не губить уже записане
+            if big:
+                log(t("sync.save_progress", n=pos + 1, total=len(links)))
+    conn.commit()
+    # сотні списків на екран не вміщаються: найбільші за новими, решта — одним рядком
+    shown = sorted(total, key=lambda k: (-added.get(k, 0), -total[k]))[:MAX_LISTS_SHOWN]
+    for name in (k for k in total if k in shown):
+        log(t("sync.list_done", name=name or source["name"], total=total[name], new=added.get(name, 0)))
+    rest = [k for k in total if k not in shown]
+    if rest:
+        log(t("sync.more_lists", n=len(rest), links=sum(total[k] for k in rest),
+              new=sum(added.get(k, 0) for k in rest)))
     return sum(added.values())
 
 

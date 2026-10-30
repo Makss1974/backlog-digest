@@ -171,6 +171,10 @@ folder_missing = "  ✗ the folder is missing or unavailable: {path}"
 folder_empty = "  no books or documents in supported formats in the folder: {path}"
 file_error = "  ✗ could not read the file {path}: {detail}"
 raindrop_error = "  ✗ Raindrop: {detail}"
+raindrop_reading = "  Reading bookmarks from Raindrop..."
+read_progress = "  bookmarks read: {n}..."
+save_progress = "  saved {n} of {total}..."
+more_lists = "  ...and {n} more lists ({links} links, {new} new)"
 
 [process]
 empty_queue = "The queue is empty. Add a source or update the lists (item 2)."

@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -102,8 +103,10 @@ def descendants(cols: list[Collection], ids: list[int]) -> set[int]:
     return chosen
 
 
-def links(token: str, collection_ids: list[int] | None = None) -> list[Link]:
-    """Закладки (крім кошика). collection_ids — лише ці колекції з вкладеними; None або [] — усі."""
+def links(token: str, collection_ids: list[int] | None = None,
+          progress: Callable[[int], None] | None = None) -> list[Link]:
+    """Закладки (крім кошика). collection_ids — лише ці колекції з вкладеними; None або [] — усі.
+    progress(n) — після кожної сторінки: скільки закладок переглянуто."""
     cols = collections(token)
     names = {c.id: c.title for c in cols}
     wanted = descendants(cols, collection_ids) if collection_ids else None
@@ -117,6 +120,8 @@ def links(token: str, collection_ids: list[int] | None = None) -> list[Link]:
                 continue
             out.append(Link(str(r["link"]), str(r.get("title") or "").strip(),
                             "" if cid == UNSORTED else names.get(cid, "")))
+        if progress:
+            progress(page * PER_PAGE + len(items))
         if len(items) < PER_PAGE:
             return out
         page += 1

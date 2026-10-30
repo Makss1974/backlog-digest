@@ -171,6 +171,10 @@ folder_missing = "  ✗ la carpeta no existe o no está disponible: {path}"
 folder_empty = "  no hay libros ni documentos en formatos compatibles en la carpeta: {path}"
 file_error = "  ✗ no se pudo leer el archivo {path}: {detail}"
 raindrop_error = "  ✗ Raindrop: {detail}"
+raindrop_reading = "  Leyendo marcadores de Raindrop..."
+read_progress = "  marcadores leídos: {n}..."
+save_progress = "  guardados {n} de {total}..."
+more_lists = "  ...y {n} listas más ({links} enlaces, {new} nuevos)"
 
 [process]
 empty_queue = "La cola está vacía. Añada una fuente o actualice las listas (opción 2)."

@@ -353,3 +353,22 @@ def test_known_missing_subtitles_apply_to_the_same_video_elsewhere(env):
     assert db.stage_counts(env.conn, "en") == (0, 5)
     stats = env.make().run(limit=10, stage=pipeline.SUMMARIZE)
     assert (stats.done, stats.reused, stats.no_text) == (2, 2, 1)
+
+
+def test_big_link_list_shows_progress_and_folds_lists(env, tmp_path):
+    lines = [f"https://e.example/{i}" for i in range(2500)]
+    (tmp_path / "many.txt").write_text("\n".join(lines), encoding="utf-8")
+    sid = pipeline.add_web_source(env.conn, "Many", [], [str(tmp_path / "many.txt")])
+    links = [web_link(f"https://f.example/{i}", f"L{i}") for i in range(40)]
+    source = db.get_source(env.conn, sid)
+    assert pipeline.sync_source(env.conn, source, env.logs.append) == (2500, 2500)
+    assert sum("saved" in line for line in env.logs) == 2          # 1000 і 2000
+    env.logs.clear()
+    assert pipeline._add_links(env.conn, source, links, env.logs.append) == 40
+    assert len(env.logs) == pipeline.MAX_LISTS_SHOWN + 1 and "10 more lists" in env.logs[-1]
+
+
+def web_link(url, list_name):
+    from backlog_digest import web
+
+    return web.Link(url, "", list_name)

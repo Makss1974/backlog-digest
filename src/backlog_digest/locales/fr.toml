@@ -171,6 +171,10 @@ folder_missing = "  ✗ dossier introuvable ou inaccessible : {path}"
 folder_empty = "  aucun livre ni document dans un format pris en charge : {path}"
 file_error = "  ✗ impossible de lire le fichier {path} : {detail}"
 raindrop_error = "  ✗ Raindrop : {detail}"
+raindrop_reading = "  Lecture des favoris depuis Raindrop..."
+read_progress = "  favoris lus : {n}..."
+save_progress = "  enregistrés : {n} sur {total}..."
+more_lists = "  ...et encore {n} listes ({links} liens, {new} nouveaux)"
 
 [process]
 empty_queue = "La file d'attente est vide. Ajoutez une source ou mettez à jour les listes (option 2)."

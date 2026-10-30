@@ -171,6 +171,10 @@ folder_missing = "  ✗ теки немає або вона недоступна
 folder_empty = "  у теці немає книг чи документів підтримуваних форматів: {path}"
 file_error = "  ✗ не вдалося прочитати файл {path}: {detail}"
 raindrop_error = "  ✗ Raindrop: {detail}"
+raindrop_reading = "  Читаю закладки з Raindrop..."
+read_progress = "  переглянуто закладок: {n}..."
+save_progress = "  записано {n} з {total}..."
+more_lists = "  ...і ще списків: {n} (посилань: {links}, нових: {new})"
 
 [process]
 empty_queue = "Черга порожня. Додайте джерело або оновіть списки (пункт 2)."

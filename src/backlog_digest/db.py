@@ -209,9 +209,10 @@ def queued_by_source(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 _ITEM_META = ("kind", "title", "author", "url", "path", "duration", "position")
 
 
-def upsert_item(conn: sqlite3.Connection, source_id: int, key: str, list_name: str = "",
+def upsert_item(conn: sqlite3.Connection, source_id: int, key: str, list_name: str = "", *, commit: bool = True,
                 **meta: Any) -> bool:
-    """Додає елемент або оновлює його метадані (статус не чіпає). True — елемент новий."""
+    """Додає елемент або оновлює його метадані (статус не чіпає). True — елемент новий.
+    commit=False — для тисяч елементів поспіль: зберігає той, хто викликав, одним разом (у рази швидше)."""
     unknown = set(meta) - set(_ITEM_META)
     if unknown:
         raise ValueError(f"unknown item fields: {sorted(unknown)}")
@@ -221,12 +222,14 @@ def upsert_item(conn: sqlite3.Connection, source_id: int, key: str, list_name: s
         if meta:
             assignments = ", ".join(f"{k}=?" for k in meta)
             conn.execute(f"UPDATE items SET {assignments} WHERE id=?", (*meta.values(), row["id"]))
-            conn.commit()
+            if commit:
+                conn.commit()
         return False
     cols = ["source_id", "list_name", "key", "added_at", *meta]
     conn.execute(f"INSERT INTO items ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
                  (source_id, list_name, key, now(), *meta.values()))
-    conn.commit()
+    if commit:
+        conn.commit()
     return True
 
 
