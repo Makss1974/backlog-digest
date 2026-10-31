@@ -4,8 +4,10 @@ import subprocess
 
 import pytest
 
-from backlog_digest import autostart, i18n, keys
+from backlog_digest import autostart, i18n, keys, youtube
 from backlog_digest.paths import HOME_ENV, get_paths
+
+REAL_VIDEO_DURATION = youtube.video_duration   # справжня — для її власного тесту
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +21,8 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(i18n, "detect_language", lambda: "en")
     # системний планувальник у тестах не чіпаємо: кожна команда «не вдалася»
     monkeypatch.setattr(autostart, "_run", lambda args, stdin=None: subprocess.CompletedProcess(args, 1, "", ""))
+    # тривалість відео зі сторінки YouTube — без мережі
+    monkeypatch.setattr(youtube, "video_duration", lambda vid: None)
     i18n.set_language("en")
     yield
     i18n.set_language("en")

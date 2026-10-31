@@ -57,7 +57,7 @@ Then, per list:
 
 | Source | How |
 |---|---|
-| **YouTube** — playlists, channels, single videos | Subtitles via yt-dlp — no Google Cloud, no YouTube keys |
+| **YouTube** — playlists, channels, single videos | Subtitles via yt-dlp — no Google Cloud, no YouTube keys. No subtitles? Gemini watches the video itself |
 | **Folders** of books and documents (also Google Drive / OneDrive / Dropbox folders) | PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU with DjVuLibre; MOBI, AZW3, DOC with Calibre |
 | **Web articles** — links, browser bookmarks (HTML export), Pocket, Instapaper, CSV | Main text only (no menus, ads, comments) |
 | **Raindrop.io** bookmarks | Collections become lists; read-only |

@@ -137,3 +137,90 @@ def test_error_message_parsing():
     assert llm._error_message('[{"error": {"message": "Quota exceeded"}}]') == "Quota exceeded"
     assert llm._error_message('{"error": "plain"}') == "plain"
     assert llm._error_message("<html>oops</html>") == "<html>oops</html>"
+
+
+# ---------------------------------------------------------------- Gemini дивиться відео
+
+def gemini_chain(tmp_path, models=("gemini-3-flash-preview", "gemini-2.5-flash")):
+    p = llm.BUILTIN["gemini"]
+    return llm.Chain([llm._Slot(p, m, "secret") for m in models], state_path=tmp_path / "q.json",
+                     log=lambda s: None, sleep=lambda s: None)
+
+
+def video_answer(text='{"a": 1}', thought="thinking..."):
+    return {"candidates": [{"content": {"parts": [{"text": thought, "thought": True}, {"text": text}]}}],
+            "usageMetadata": {"promptTokenCount": 1000, "candidatesTokenCount": 20, "thoughtsTokenCount": 5}}
+
+
+def test_watch_payload_and_answer(tmp_path, monkeypatch):
+    calls = []
+
+    def fake(method, url, key, payload=None, timeout=0, key_header=""):
+        calls.append((url, key, key_header, payload))
+        return video_answer()
+
+    monkeypatch.setattr(llm, "_request", fake)
+    chain = gemini_chain(tmp_path)
+    assert chain.has_watcher() and chain.can_watch()
+    res = chain.watch("sys", "user", "https://www.youtube.com/watch?v=abc", start=60, end=120)
+    assert (res.text, res.model, res.tokens_in, res.tokens_out) == ('{"a": 1}', "gemini/gemini-3-flash-preview",
+                                                                    1000, 25)
+    url, key, header, payload = calls[0]
+    assert url.endswith("/v1beta/models/gemini-3-flash-preview:generateContent")
+    assert (key, header) == ("secret", "x-goog-api-key")
+    video, text = payload["contents"][0]["parts"]
+    assert video == {"fileData": {"fileUri": "https://www.youtube.com/watch?v=abc"},
+                     "videoMetadata": {"startOffset": "60s", "endOffset": "120s"}}
+    assert text == {"text": "user"} and payload["systemInstruction"]["parts"][0]["text"] == "sys"
+    gen = payload["generationConfig"]
+    assert gen["responseMimeType"] == "application/json" and gen["thinkingConfig"] == {"thinkingLevel": "low"}
+    chain.disabled.add("gemini/gemini-3-flash-preview")
+    chain.watch("s", "u", "https://www.youtube.com/watch?v=abc", json_out=False)
+    gen = calls[1][3]["generationConfig"]
+    assert gen["thinkingConfig"] == {"thinkingBudget": 0} and "responseMimeType" not in gen
+    assert "videoMetadata" not in calls[1][3]["contents"][0]["parts"][0]
+
+
+def test_watch_rejected_video_does_not_disable_models(tmp_path, monkeypatch):
+    def fake(method, url, key, payload=None, timeout=0, key_header=""):
+        raise llm.HttpError(400, "Request contains an invalid argument.")
+
+    monkeypatch.setattr(llm, "_request", fake)
+    chain = gemini_chain(tmp_path)
+    for _ in range(3):
+        with pytest.raises(llm.VideoRejected):
+            chain.watch("s", "u", "https://www.youtube.com/watch?v=gone")
+    assert chain.can_watch() and not chain.disabled
+
+
+def test_watch_quota_and_no_gemini(tmp_path, monkeypatch):
+    def fake(method, url, key, payload=None, timeout=0, key_header=""):
+        raise llm.HttpError(429, "Quota exceeded for requests per day")
+
+    monkeypatch.setattr(llm, "_request", fake)
+    chain = gemini_chain(tmp_path)
+    with pytest.raises(llm.QuotaExhausted):
+        chain.watch("s", "u", "https://www.youtube.com/watch?v=abc")
+    assert not chain.can_watch() and chain.has_watcher()
+    other, _ = make_chain(tmp_path, ("deepseek", ["m1"]))
+    assert not other.has_watcher()
+
+
+def test_minute_limit_is_not_remembered_for_the_day(tmp_path, monkeypatch):
+    minute = llm.HttpError(429, "Quota exceeded [GenerateContentInputTokensPerModelPerMinute-FreeTier]")
+    server = FakeServer({"m1": [minute, minute], "m2": [answer("ok")]})
+    monkeypatch.setattr(llm, "_request", server)
+    chain, logs = make_chain(tmp_path, ("gemini", ["m1", "m2"]))
+    assert chain.complete("s", "u").model == "gemini/m2"
+    assert "gemini/m1" in chain.disabled and not (tmp_path / "quota.json").exists()
+    assert any("per-minute" in line for line in logs)
+
+
+def test_error_message_keeps_gemini_quota_ids():
+    body = json.dumps({"error": {"message": "You exceeded your current quota.", "details": [
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
+            {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"},
+            {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "41s"}]}})
+    assert llm._error_message(body) == (
+        "You exceeded your current quota. [GenerateRequestsPerDayPerProjectPerModel-FreeTier]")

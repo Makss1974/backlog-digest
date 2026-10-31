@@ -357,6 +357,19 @@ def mark_error(conn: sqlite3.Connection, item_id: int, error: str) -> str:
     return status
 
 
+NO_SUBTITLES = "no subtitles"
+
+
+def requeue_no_subtitles(conn: sqlite3.Connection) -> int:
+    """Відео, позначені «субтитрів немає», — знову в чергу (тепер їх може подивитися Gemini).
+    Текст їм збирати не треба: у transcripts уже записано, що субтитрів немає."""
+    n = conn.execute("UPDATE items SET status=?, error=NULL WHERE kind='video' AND status=? AND error=? "
+                     "AND key IN (SELECT key FROM transcripts WHERE text IS NULL)",
+                     (NEW, NO_TEXT, NO_SUBTITLES)).rowcount
+    conn.commit()
+    return n
+
+
 def retry_failed(conn: sqlite3.Connection, source_id: int | None = None) -> int:
     """Повертає failed у чергу (вручну, коли причину усунуто). Повертає к-сть елементів."""
     sql = "UPDATE items SET status=?, attempts=0, error=NULL WHERE status=?"

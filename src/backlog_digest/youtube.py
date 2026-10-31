@@ -138,6 +138,19 @@ def _single_video(vid: str) -> Entry:
         return Entry(vid, vid)
 
 
+def video_duration(vid: str) -> int | None:
+    """Тривалість відео в секундах зі сторінки відео (окремі посилання її не мають; без субтитрів і ключів)."""
+    req = urllib.request.Request(WATCH_URL.format(vid), headers={"User-Agent": "Mozilla/5.0",
+                                                                  "Accept-Language": "en"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            page = resp.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    m = re.search(r'"lengthSeconds":"(\d+)"', page)
+    return int(m.group(1)) if m else None
+
+
 def _first_line(s: str) -> str:
     line = next((ln.strip() for ln in s.splitlines() if ln.strip()), s)
     return re.sub(r"^ERROR:\s*", "", line)[:200]

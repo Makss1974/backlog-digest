@@ -120,6 +120,15 @@ for a final summary later. Write in {language}, as a bulleted list, without intr
 - the approximate share of filler in this part.
 Do not invent anything: only what is in the text."""
 
+VIDEO_PART_PROMPT = """You are watching one part of a long YouTube video and making working notes \
+for a final summary later. Write in {language}, as a bulleted list, without introductions:
+- key ideas, facts, numbers, arguments (in detail), each with a timestamp [mm:ss] or [h:mm:ss] of the whole video;
+- concrete practical recommendations;
+- what the author relies on (research, data, experience);
+- questionable or unscientific claims (mark them with "⚠️");
+- filler (intros, ads, repetition) with timestamps.
+Use both what is said and what is shown. Do not invent anything: only what is in the video."""
+
 RETRY_NOTE = ("\n\nYour previous answer could not be parsed ({error}). "
               "Answer again with exactly one valid JSON object following the schema.")
 
@@ -164,6 +173,27 @@ def user_prompt(title: str, channel: str, duration: str, transcript: str, transc
     if truncated:
         lines.append("(The transcript was cut because of its length: the end of the video is not shown.)")
     return "\n".join(lines) + f"\n\nTRANSCRIPT:\n{transcript[:max_chars]}"
+
+
+def video_user_prompt(title: str, channel: str, duration: str, notes: str = "", parts: int = 0) -> str:
+    """Відео без субтитрів: модель дивиться саме відео (або читає нотатки його частин)."""
+    lines = [f"Title: {title}", f"Channel: {channel}"]
+    if duration:
+        lines.append(f"Duration: {duration}")
+    if parts:
+        return "\n".join(lines) + (f"\n\nThe video has no subtitles and is long, so below are working notes from "
+                                   f"its {parts} parts, in order, with timestamps. Make one final summary from them."
+                                   f"\n\nNOTES OF THE PARTS:\n{notes}")
+    return "\n".join(lines) + ("\n\nThe video has no subtitles, so it is attached itself: watch and listen to it. "
+                               "Take timestamps [mm:ss] from the video.")
+
+
+def video_part_prompt(language: str) -> str:
+    return VIDEO_PART_PROMPT.format(language=language_name(language))
+
+
+def video_part_user_prompt(title: str, n: int, total: int, start: str, end: str) -> str:
+    return f"Title: {title}\nPart {n} of {total}: from {start} to {end}."
 
 
 def parse_summary(text: str) -> dict[str, Any]:

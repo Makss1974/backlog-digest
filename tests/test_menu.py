@@ -179,6 +179,9 @@ def test_process_from_menu_asks_for_output_folder(make_menu, monkeypatch, capsys
         def complete(self, system, user, **kw):
             return llm.LLMResult('{"about": "A", "key_points": ["k"], "score": 4, "verdict": "watch"}', "fake/m")
 
+        def has_watcher(self):
+            return False
+
     monkeypatch.setattr(pipeline.Chain, "from_config", classmethod(lambda cls, cfg, paths, log=print: Chain()))
     m = make_menu()
     pipeline.add_youtube_source(m.conn, "YouTube", ["x"], "Video")

@@ -18,7 +18,7 @@ from typing import Any
 
 from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, web, youtube
 from .i18n import t
-from .llm import Chain, LLMError, QuotaExhausted, short
+from .llm import Chain, LLMError, LLMResult, QuotaExhausted, short
 from .paths import Paths, get_paths
 
 ALL, FETCH, SUMMARIZE = db.ALL, db.FETCH, db.SUMMARIZE
@@ -206,6 +206,7 @@ class Processor:
         self._labels: dict[str, str] | None = None
         self._fetched_before = False
         self._fetching = self._summarizing = True
+        self._watching = True   # Gemini ще не вичерпав ліміт на перегляд відео
         self._fetch_left = 0
         self._touched: set[tuple[int, str]] = set()   # списки з новими нотатками — оновити їхні індекси
 
@@ -290,6 +291,10 @@ class Processor:
                 return stats
             self._fetching = False
             stage = SUMMARIZE
+        if self._summarizing and self._watch_enabled():
+            n = db.requeue_no_subtitles(self.conn)
+            if n:
+                self.log(t("process.requeued_watch", n=n))
         rows = db.pending(self.conn, min(limit, self._fetch_left) if stage == FETCH else limit, source_id,
                           list_name, newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
                           language=self.language)
@@ -354,8 +359,8 @@ class Processor:
             tr = self._fetch(item, stats)
             if tr is None:
                 return
-        elif text["text"] is None:   # уже з'ясовано, що субтитрів немає (те саме відео в іншому списку)
-            self._no_text(item, stats)
+        elif text["text"] is None:   # уже з'ясовано, що субтитрів немає
+            self._no_subtitles(item, stats, known=True)
             return
         else:
             tr = youtube.Transcript(text["text"], text["language"] or "", bool(text["generated"]))
@@ -377,7 +382,7 @@ class Processor:
         self._count_fetch()
         if tr is None:
             db.save_transcript(self.conn, item["key"], None)
-            self._no_text(item, stats)
+            self._no_subtitles(item, stats)
             return None
         db.save_transcript(self.conn, item["key"], tr.text, tr.language, tr.generated)
         stats.fetched += 1
@@ -393,9 +398,92 @@ class Processor:
             self._fetching = False
 
     def _no_text(self, item: dict[str, Any], stats: RunStats) -> None:
-        db.mark_no_text(self.conn, item["id"], "no subtitles")
+        db.mark_no_text(self.conn, item["id"], db.NO_SUBTITLES)
         stats.no_text += 1
         self.log("  " + t("process.no_subtitles"))
+
+    # -- відео без субтитрів: Gemini дивиться саме відео
+
+    def _watch_enabled(self) -> bool:
+        return self.cfg["youtube"]["no_subtitles"] == "gemini" and self.chain.has_watcher()
+
+    def _no_subtitles(self, item: dict[str, Any], stats: RunStats, known: bool = False) -> None:
+        """Субтитрів немає. Є Gemini — він подивиться відео (зараз або на кроці конспектів), інакше no_text."""
+        if not self._watch_enabled():
+            self._no_text(item, stats)
+            return
+        if not known:
+            self.log("  " + t("process.no_subtitles_watch"))
+        if self._summarizing and self._watching:
+            self._watch(item, stats)
+
+    def _watch(self, item: dict[str, Any], stats: RunStats) -> None:
+        """Конспект відео без субтитрів. Довге відео — частинами (нотатки частин кешуються, як у книг).
+        Gemini вичерпав ліміт — відео лишаються в черзі до завтра, а інші моделі працюють далі."""
+        url = youtube.WATCH_URL.format(item["key"].removeprefix("youtube:"))
+        title, channel = item["title"] or "", item["author"] or ""
+        duration = youtube.format_duration(item["duration"])
+        system = summarize.system_prompt(self.language)
+        deep = self._deep(0)
+        part = int(self.cfg["youtube"]["part_minutes"]) * 60
+        if not item["duration"]:   # окреме посилання: тривалість невідома, а довге відео треба ділити
+            item["duration"] = youtube.video_duration(item["key"].removeprefix("youtube:"))
+            if item["duration"]:
+                db.set_item_meta(self.conn, item["id"], duration=item["duration"])
+                duration = youtube.format_duration(item["duration"])
+        total = int(item["duration"] or 0)
+        cache = self.paths.cache_dir / "chunks" / item["key"].replace(":", "_")
+        try:
+            if total <= part * 1.25:   # тривалість невідома або відео коротке — за один раз
+                self.log("  " + t("process.watching"))
+                done = self._finish(item, system, summarize.video_user_prompt(title, channel, duration), deep,
+                                    None, stats, ask=lambda user: self.chain.watch(system, user, url, deep=deep))
+            else:
+                notes_ = self._watch_parts(item, url, total, part, cache, deep, stats)
+                if notes_ is None:
+                    return
+                body = "\n\n".join(f"### Part {n}\n{note}" for n, note in enumerate(notes_, 1))
+                done = self._finish(item, system, summarize.video_user_prompt(title, channel, duration, body,
+                                                                              len(notes_)), deep, None, stats)
+        except QuotaExhausted:
+            if not self.chain.active():
+                raise
+            self.log("  " + t("process.watch_quota"))
+            self._watching = False
+            return
+        if done:
+            db.delete_transcript(self.conn, item["key"])
+            shutil.rmtree(cache, ignore_errors=True)
+
+    def _watch_parts(self, item: dict[str, Any], url: str, total: int, part: int, cache: Path, deep: bool,
+                     stats: RunStats) -> list[str] | None:
+        bounds = [(s, min(s + part, total)) for s in range(0, total, part)]
+        if len(bounds) > 1 and bounds[-1][1] - bounds[-1][0] < part // 4:   # куций хвіст — до попередньої частини
+            bounds[-2:] = [(bounds[-2][0], total)]
+        out = []
+        for n, (start, end) in enumerate(bounds, 1):
+            cached = cache / f"{self.language}_video{part}_{n:03d}.md"
+            if cached.exists():
+                out.append(cached.read_text(encoding="utf-8"))
+                self.log("  " + t("process.part_cached", n=n, total=len(bounds)))
+                continue
+            a, b = youtube.format_duration(start), youtube.format_duration(end)
+            self.log("  " + t("process.watch_part", n=n, total=len(bounds), start=a, end=b))
+            try:
+                res = self.chain.watch(summarize.video_part_prompt(self.language),
+                                       summarize.video_part_user_prompt(item["title"] or "", n, len(bounds), a, b),
+                                       url, start=start, end=end, deep=deep, json_out=False)
+            except QuotaExhausted:
+                raise
+            except LLMError as e:
+                self._error(item, stats, t("process.model_error", detail=short(str(e), 200)))
+                return None
+            stats.tokens += res.tokens_in + res.tokens_out
+            note = res.text.strip()
+            cache.mkdir(parents=True, exist_ok=True)
+            cached.write_text(note, encoding="utf-8")
+            out.append(note)
+        return out
 
     def _summarize(self, item: dict[str, Any], tr: youtube.Transcript, stats: RunStats) -> None:
         user = summarize.user_prompt(item["title"] or "", item["author"] or "",
@@ -489,15 +577,17 @@ class Processor:
         return out
 
     def _finish(self, item: dict[str, Any], system: str, user: str, deep: bool, source_language: str | None,
-                stats: RunStats, extra: dict[str, Any] | None = None) -> bool:
+                stats: RunStats, extra: dict[str, Any] | None = None,
+                ask: Callable[[str], LLMResult] | None = None) -> bool:
         """Підсумковий конспект: запит до моделі, перевірка відповіді, запис нотатки. True — готово.
-        extra — відомості про джерело (автор і дата статті), що зберігаються разом із конспектом."""
+        extra — відомості про джерело (автор і дата статті), що зберігаються разом із конспектом;
+        ask — інший спосіб запиту (Gemini дивиться відео) замість звичайної черги моделей."""
+        ask = ask or (lambda u: self.chain.complete(system, u, deep=deep))
         summary = None
         error = ""
         for _attempt in range(2):   # зламаний JSON — ще одна спроба з поясненням
             try:
-                res = self.chain.complete(system, user + (summarize.RETRY_NOTE.format(error=error) if error else ""),
-                                          deep=deep)
+                res = ask(user + (summarize.RETRY_NOTE.format(error=error) if error else ""))
             except QuotaExhausted:
                 raise
             except LLMError as e:

@@ -16,11 +16,14 @@ GOOD = json.dumps({
 
 
 class FakeChain:
-    def __init__(self, answers=None, exhausted=False):
+    def __init__(self, answers=None, exhausted=False, watcher=False, watch_answers=None):
         self.answers = list(answers or [])
         self.slots = [object()]
         self.exhausted = exhausted
         self.calls = []
+        self.watcher = watcher                  # є Gemini, що вміє дивитися відео
+        self.watch_answers = list(watch_answers or [])
+        self.watched = []                       # (url, start, end, user)
 
     def active(self):
         return [] if self.exhausted else ["fake/model"]
@@ -31,6 +34,21 @@ class FakeChain:
         if isinstance(reply, Exception):
             raise reply
         return llm.LLMResult(reply, "fake/model", 100, 50)
+
+    def has_watcher(self):
+        return self.watcher
+
+    def can_watch(self):
+        return self.watcher
+
+    def watch(self, system, user, url, *, start=None, end=None, deep=False, json_out=True):
+        self.watched.append((url, start, end, user))
+        reply = self.watch_answers.pop(0) if self.watch_answers else GOOD
+        if isinstance(reply, Exception):
+            if isinstance(reply, llm.QuotaExhausted):
+                self.watcher = False
+            raise reply
+        return llm.LLMResult(reply, "fake/gemini", 1000, 50)
 
 
 @pytest.fixture
@@ -380,3 +398,116 @@ def test_single_video_goes_straight_into_source_folder(env, monkeypatch):
     assert sync(env)[0] == 1
     env.make().run(limit=1)
     assert (env.root / "Video" / "Lone video.md").exists()     # не «Video/YouTube/Lone video.md»
+
+
+# ---------------------------------------------------------------- відео без субтитрів: Gemini дивиться відео
+
+def item(env, vid):
+    return env.conn.execute("SELECT * FROM items WHERE key=?", (f"youtube:{vid}",)).fetchone()
+
+
+def test_no_subtitles_video_is_watched_by_gemini(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    chain = FakeChain(watcher=True)
+    stats = env.make(chain).run(limit=10)
+    assert (stats.done, stats.no_text) == (3, 0)
+    assert [w[:3] for w in chain.watched] == [("https://www.youtube.com/watch?v=vid00000001", None, None)]
+    assert "no subtitles" in chain.watched[0][3] and "Duration: 01:00" in chain.watched[0][3]
+    assert item(env, "vid00000001")["status"] == db.DONE
+    assert db.get_result(env.conn, "youtube:vid00000001", "en")["model"] == "fake/gemini"
+    assert db.get_transcript(env.conn, "youtube:vid00000001") is None
+    assert any("Gemini will watch" in line for line in env.logs)
+
+
+def test_no_subtitles_fetch_step_leaves_watching_for_summaries(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    chain = FakeChain(watcher=True)
+    stats = env.make(chain).run(limit=10, stage=pipeline.FETCH)
+    assert (stats.fetched, stats.no_text, chain.watched) == (2, 0, [])
+    assert item(env, "vid00000001")["status"] == db.NEW
+    assert db.stage_counts(env.conn, "en") == (0, 3)        # усі три — на кроці конспектів
+    assert env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE).done == 3
+    assert len(chain.watched) == 1
+
+
+def test_without_gemini_or_with_skip_it_stays_no_text(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    assert env.make(FakeChain()).run(limit=10).no_text == 1
+    env.cfg["youtube"]["no_subtitles"] = "skip"
+    chain = FakeChain(watcher=True)
+    env.make(chain).run(limit=10)
+    assert chain.watched == [] and item(env, "vid00000001")["status"] == db.NO_TEXT
+
+
+def test_no_text_videos_return_to_queue_when_gemini_appears(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.make(FakeChain()).run(limit=10)
+    assert item(env, "vid00000001")["status"] == db.NO_TEXT
+    env.logs.clear()
+    chain = FakeChain(watcher=True)
+    assert env.make(chain).run(limit=10).done == 1
+    assert any("returned to the queue" in line and ": 1" in line for line in env.logs)
+    assert item(env, "vid00000001")["status"] == db.DONE
+
+
+def test_long_video_is_watched_in_parts_and_resumes(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.conn.execute("UPDATE items SET duration=3000 WHERE key='youtube:vid00000001'")
+    env.conn.commit()
+    chain = FakeChain(watcher=True, watch_answers=["notes 1", llm.LLMError("boom")])
+    env.make(chain).run(limit=1)
+    assert [w[1:3] for w in chain.watched] == [(0, 1200), (1200, 2400)]
+    assert item(env, "vid00000001")["status"] == db.ERROR
+    chain = FakeChain(watcher=True, watch_answers=["notes 2", "notes 3"])
+    assert env.make(chain).run(limit=10).done == 3           # відео з помилкою — у черзі останнім
+    assert [w[1:3] for w in chain.watched] == [(1200, 2400), (2400, 3000)]    # частина 1 — з кешу
+    assert any("1/3" in line and "already done" in line for line in env.logs)
+    final = next(c for c in chain.calls if "NOTES OF THE PARTS" in c)
+    assert "NOTES OF THE PARTS" in final and "notes 1" in final and "notes 3" in final
+    assert not (env.make().paths.cache_dir / "chunks" / "youtube_vid00000001").exists()
+
+
+def test_short_tail_joins_the_last_part(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.conn.execute("UPDATE items SET duration=2500 WHERE key='youtube:vid00000001'")
+    env.conn.commit()
+    chain = FakeChain(watcher=True, watch_answers=["n1", "n2"])
+    env.make(chain).run(limit=1)
+    assert [w[1:3] for w in chain.watched] == [(0, 1200), (1200, 2500)]
+
+
+def test_gemini_quota_keeps_videos_waiting_but_other_items_go_on(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    chain = FakeChain(watcher=True, watch_answers=[llm.QuotaExhausted("gemini done")])
+    stats = env.make(chain).run(limit=10)
+    assert stats.done == 2 and not stats.stopped
+    assert item(env, "vid00000001")["status"] == db.NEW
+    assert any("wait until tomorrow" in line for line in env.logs)
+
+
+def test_video_gemini_cannot_open_is_an_item_error(env):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    chain = FakeChain(watcher=True, watch_answers=[llm.VideoRejected("private")])
+    stats = env.make(chain).run(limit=10)
+    assert (stats.done, stats.errors) == (2, 1)
+    assert item(env, "vid00000001")["status"] == db.ERROR
+
+
+def test_unknown_duration_is_looked_up_before_watching(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.conn.execute("UPDATE items SET duration=NULL WHERE key='youtube:vid00000001'")
+    env.conn.commit()
+    monkeypatch.setattr(youtube, "video_duration", lambda vid: 2500 if vid == "vid00000001" else None)
+    chain = FakeChain(watcher=True, watch_answers=["n1", "n2"])
+    env.make(chain).run(limit=1)
+    assert [w[1:3] for w in chain.watched] == [(0, 1200), (1200, 2500)]
+    assert item(env, "vid00000001")["duration"] == 2500

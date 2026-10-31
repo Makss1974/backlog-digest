@@ -37,8 +37,14 @@ collected. Usually waiting a day is enough; the schedule carries on by itself.
 Better not: from cloud provider addresses (AWS and the like) YouTube blocks subtitles almost immediately.
 The program is meant for a home computer.
 
-**A video got "no text".**
-It has no subtitles at all, neither the author's nor automatic ones. Speech recognition is planned.
+**A video has no subtitles.**
+With a Gemini key the program does not give up: Gemini watches the video itself by its link (Google opens it,
+not your address, and nothing is downloaded). Long videos are watched in parts of 20 minutes
+(`[youtube] part_minutes`), and the parts are kept, so a stop does not start the video over. A video costs
+about 100 model tokens per second, so a free Gemini key handles a few such videos a day; when its limit is
+used up, these videos wait until the next day and everything else goes on. Without a Gemini key, or with
+`[youtube] no_subtitles = "skip"`, such a video gets "no text". Videos that got "no text" earlier return to the
+queue by themselves once a Gemini key is added.
 
 **Why is it so slow?**
 Subtitles are slow on purpose (see above). Summaries of what is already collected are fast: menu → 3 →

@@ -127,3 +127,21 @@ def test_choose_transcript(available, langs, expected):
     tlist = FakeList(FakeTranscript(lang, gen) for lang, gen in available)
     chosen = youtube._choose(tlist, langs, LookupError)
     assert (None if chosen is None else (chosen.language_code, chosen.is_generated)) == expected
+
+
+def test_video_duration_from_the_page(monkeypatch):
+    import io
+    import urllib.request
+
+    from conftest import REAL_VIDEO_DURATION as duration
+
+    pages = {"ok": b'..."lengthSeconds":"427",...', "none": b"<html></html>"}
+
+    def fake(req, timeout=0):
+        vid = req.full_url.rsplit("=", 1)[1]
+        if vid == "err":
+            raise OSError("offline")
+        return io.BytesIO(pages[vid])
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    assert (duration("ok"), duration("none"), duration("err")) == (427, None, None)

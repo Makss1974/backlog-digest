@@ -2,6 +2,17 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Sources
+- **YouTube videos without subtitles**: Gemini watches the video itself by its link — nothing is downloaded and
+  YouTube is not asked from your address. Long videos are watched in parts (`[youtube] part_minutes`, 20 by
+  default) that survive a stop. Videos that got "no text" earlier return to the queue once a Gemini key is set.
+  `[youtube] no_subtitles = "skip"` turns it off.
+
+### Fixes
+- A model that hit a per-minute limit is no longer switched off for the whole day, only for the current run.
+
 ## 1.0.0 — first public release
 
 ### Sources

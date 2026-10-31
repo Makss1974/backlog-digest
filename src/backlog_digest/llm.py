@@ -4,6 +4,9 @@
 Уроки прототипу: денні ліміти запам'ятовуються до скидання (щоб не стукати марно),
 перевантажена модель (503) вимикається після 2 збоїв, «зникла» модель (404) — одразу,
 невірний ключ (401/403) вимикає весь провайдер, а не валить елементи.
+
+Відео без субтитрів «дивиться» Gemini за посиланням на YouTube (власний API Gemini, не OpenAI-сумісний):
+нічого не завантажуємо, YouTube відкриває Google, а не наша IP.
 """
 from __future__ import annotations
 
@@ -51,6 +54,8 @@ BUILTIN: dict[str, Provider] = {
     "lmstudio": Provider("lmstudio", "http://localhost:1234/v1/", None, ()),
 }
 
+GEMINI_NATIVE = "https://generativelanguage.googleapis.com/v1beta/"
+_SHORT_HINTS = ("perminute", "per minute")   # хвилинний ліміт: модель вимикаємо лише до кінця запуску
 _DAILY_HINTS = ("perday", "per day", "daily", "insufficient balance", "insufficient_quota", "credits", "billing")
 TIMEOUT = 180
 
@@ -61,6 +66,10 @@ class LLMError(Exception):
 
 class QuotaExhausted(LLMError):
     """Усі моделі вичерпали ліміт або недоступні — треба зупинитися й продовжити пізніше."""
+
+
+class VideoRejected(LLMError):
+    """Gemini не може відкрити це відео (приватне, видалене, з обмеженнями) — помилка елемента, не моделі."""
 
 
 class HttpError(Exception):
@@ -110,9 +119,11 @@ def quota_day() -> str:
 # ---------------------------------------------------------------- HTTP
 
 def _request(method: str, url: str, key: str | None, payload: dict[str, Any] | None = None,
-             timeout: float = TIMEOUT) -> dict[str, Any]:
+             timeout: float = TIMEOUT, key_header: str = "") -> dict[str, Any]:
     headers = {"Content-Type": "application/json", "User-Agent": f"backlog-digest/{__version__}"}
-    if key:
+    if key and key_header:
+        headers[key_header] = key
+    elif key:
         headers["Authorization"] = f"Bearer {key}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -135,7 +146,11 @@ def _error_message(body: str) -> str:
             data = data[0]
         err = data.get("error", data)
         msg = err.get("message") if isinstance(err, dict) else err
-        return short(str(msg or body))
+        # Gemini пише, ЯКИЙ ліміт вичерпано (за день чи за хвилину), лише в details: quotaId
+        ids = [v.get("quotaId", "") for d in (err.get("details") or [] if isinstance(err, dict) else [])
+               if isinstance(d, dict) for v in d.get("violations") or [] if isinstance(v, dict)]
+        ids = [i for i in dict.fromkeys(ids) if i]
+        return short(str(msg or body) + (f" [{', '.join(ids)}]" if ids else ""))
     except (ValueError, AttributeError):
         return short(body)
 
@@ -213,24 +228,52 @@ class Chain:
         return [s.name for s in self.slots if s.name not in self.disabled]
 
     def complete(self, system: str, user: str, *, deep: bool = False, json_out: bool = True) -> LLMResult:
+        return self._each(self.slots, lambda slot: self._call(slot, system, user, deep, json_out))
+
+    # -- відео за посиланням (лише Gemini)
+
+    def _watchers(self) -> list[_Slot]:
+        return [s for s in self.slots if s.provider.name == "gemini" and s.provider.base_url.startswith(
+            "https://generativelanguage.googleapis.com/")]
+
+    def has_watcher(self) -> bool:
+        """Є ключ Gemini — відео без субтитрів можна «дивитися»."""
+        return bool(self._watchers())
+
+    def can_watch(self) -> bool:
+        """Є Gemini, що не вичерпав ліміт сьогодні."""
+        return any(s.name not in self.disabled for s in self._watchers())
+
+    def watch(self, system: str, user: str, url: str, *, start: int | None = None, end: int | None = None,
+              deep: bool = False, json_out: bool = True) -> LLMResult:
+        """Gemini дивиться відео YouTube (або його відрізок start..end, у секундах) і відповідає на запит."""
+        return self._each(self._watchers(),
+                          lambda slot: self._call_video(slot, system, user, url, start, end, deep, json_out))
+
+    def _each(self, slots: list[_Slot], call: Callable[[_Slot], LLMResult]) -> LLMResult:
         errors = []
-        for slot in self.slots:
+        for slot in slots:
             if slot.name in self.disabled:
                 continue
             try:
-                return self._call(slot, system, user, deep, json_out)
+                return call(slot)
+            except VideoRejected:
+                raise
             except HttpError as e:
                 errors.append(f"{slot.name}: {e.message}")
                 self._handle_http(slot, e)
             except (urllib.error.URLError, OSError, LLMError) as e:
                 errors.append(f"{slot.name}: {short(str(e))}")
                 self._fail(slot, short(str(e)))
-        if not self.active():
+        if not any(s.name not in self.disabled for s in slots):
             raise QuotaExhausted("; ".join(errors[-3:]))
         raise LLMError("; ".join(errors) or "no model answered")
 
     def _handle_http(self, slot: _Slot, e: HttpError) -> None:
-        if e.status in (429, 402):
+        if e.status == 429 and any(h in e.message.lower() for h in _SHORT_HINTS):
+            self.log(t("llm.busy", model=slot.name))   # завтра чекати не треба — лише цей запуск
+            self.disabled.add(slot.name)
+        elif e.status in (429, 402):
             self.log(t("llm.quota", model=slot.name))
             self.disabled.add(slot.name)
             self._remember_exhausted(slot.name)
@@ -278,6 +321,48 @@ class Chain:
         usage = data.get("usage") or {}
         return LLMResult(text, slot.name, int(usage.get("prompt_tokens") or 0),
                          int(usage.get("completion_tokens") or 0))
+
+
+    def _call_video(self, slot: _Slot, system: str, user: str, url: str, start: int | None, end: int | None,
+                    deep: bool, json_out: bool, retried: bool = False) -> LLMResult:
+        video: dict[str, Any] = {"fileData": {"fileUri": url}}
+        if start is not None and end is not None:
+            video["videoMetadata"] = {"startOffset": f"{start}s", "endOffset": f"{end}s"}
+        gen: dict[str, Any] = {"temperature": self.temperature,
+                               "mediaResolution": "MEDIA_RESOLUTION_LOW"}   # ~100 токенів на секунду відео
+        if json_out:
+            gen["responseMimeType"] = "application/json"
+        if slot.model.startswith("gemini-2"):
+            gen["thinkingConfig"] = {"thinkingBudget": -1 if deep else 0}
+        elif slot.model.startswith("gemini-"):
+            gen["thinkingConfig"] = {"thinkingLevel": "high" if deep else "low"}
+        payload = {"systemInstruction": {"parts": [{"text": system}]},
+                   "contents": [{"role": "user", "parts": [video, {"text": user}]}],
+                   "generationConfig": gen}
+        try:
+            data = _request("POST", f"{GEMINI_NATIVE}models/{slot.model}:generateContent", slot.key, payload,
+                            timeout=TIMEOUT * 3, key_header="x-goog-api-key")
+        except HttpError as e:
+            if e.status == 400:   # відео недоступне Gemini — справа у відео, не в моделі
+                raise VideoRejected(e.message) from e
+            if e.status == 429 and not retried and not any(h in e.message.lower() for h in _DAILY_HINTS):
+                self.log(t("llm.waiting", model=slot.name, seconds=int(self.rate_limit_wait)))
+                self.sleep(self.rate_limit_wait)
+                return self._call_video(slot, system, user, url, start, end, deep, json_out, retried=True)
+            raise
+        candidates = data.get("candidates") or []
+        if not candidates:
+            reason = (data.get("promptFeedback") or {}).get("blockReason")
+            if reason:
+                raise VideoRejected(f"blocked: {reason}")
+            raise LLMError("empty response")
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        if not text.strip():
+            raise LLMError(f"empty response ({candidates[0].get('finishReason', '')})")
+        usage = data.get("usageMetadata") or {}
+        return LLMResult(text, slot.name, int(usage.get("promptTokenCount") or 0),
+                         int(usage.get("candidatesTokenCount") or 0) + int(usage.get("thoughtsTokenCount") or 0))
 
 
 def model_status(cfg: dict[str, Any], paths: Paths) -> tuple[list[str], list[str]]:
