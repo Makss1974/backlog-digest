@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.1.0 — videos without subtitles, speech recognition, audio files
 
 ### Sources
 - **YouTube videos without subtitles**: Gemini watches the video itself by its link — nothing is downloaded and
