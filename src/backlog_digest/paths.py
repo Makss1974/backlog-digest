@@ -48,7 +48,7 @@ class Paths:
 def get_paths() -> Paths:
     home = os.environ.get(HOME_ENV)
     if home:
-        p = Path(home).expanduser()
+        p = Path(home).expanduser().absolute()   # хмарна тека переходить у себе (os.chdir) — потрібен повний шлях
         return Paths(p, p)
     if sys.platform == "win32":
         roaming = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")

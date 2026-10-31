@@ -261,14 +261,17 @@ class Menu:
                 print(f"  4. {t('schedule.run_now')}")
             toggle = t("schedule.autostart_off_item") if self.autostart_on() else t("schedule.autostart_on_item")
             print(f"  5. {toggle}")
+            print(f"  6. {t('cloud.menu_item')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 5)
+            choice = ask_int(t("settings.choose"), 0, 0, 6)
             if choice == 0:
                 return
             if choice == 1:
                 self.add_job()
             elif choice == 5:
                 self.toggle_autostart()
+            elif choice == 6:
+                self.cloud_menu()
             elif jobs and choice in (2, 3, 4):
                 ids = {j["id"]: j for j in jobs}
                 raw = ask(f"{t('schedule.job_numbers')} ")
@@ -285,6 +288,41 @@ class Menu:
                         schedule.delete_job(self.conn, job_id)
                 if choice == 4:
                     schedule.run_due(self.conn, self.cfg, self.paths, only=picked)
+
+    def cloud_menu(self) -> None:
+        """Хмарний режим за бажанням: створити хмарну теку або (якщо це вона) забрати / надіслати зміни."""
+        from . import cloud
+
+        print(ui.header(f"☁️ {t('cloud.title')}"))
+        try:
+            if cloud.is_cloud(self.paths):
+                home = self.paths.config_dir
+                remote = cloud.has_remote(home)
+                print(f"  {t('cloud.here', path=str(home), remote=t('cloud.yes') if remote else t('cloud.no'))}\n")
+                print(f"  1. {t('cloud.pull_item')}\n  2. {t('cloud.push_item')}\n  0. {t('menu.back')}")
+                choice = ask_int(t("settings.choose"), 0, 0, 2)
+                if choice == 1:
+                    print(t("cloud.pulled") if cloud.pull(home) else t("cloud.no_remote"))
+                elif choice == 2:
+                    print(t("cloud.pushed") if cloud.push(home, "bdig menu") else t("cloud.no_remote"))
+                return
+            print(t("cloud.about") + "\n")
+            raw = ask(f"{t('cloud.ask_folder')}: ").strip().strip('"')
+            if not raw:
+                return
+            copy_data = ask_yes(t("cloud.ask_copy"))
+            while True:
+                at_time = schedule.parse_time(ask(f"{t('cloud.ask_time')} [07:00]: ") or "07:00")
+                if at_time:
+                    break
+                print(t("schedule.bad_time"))
+            dest = cloud.init(Path(raw), self.paths, self.cfg, self.conn, copy_data=copy_data, at_time=at_time)
+        except cloud.CloudError as e:
+            print(t("cloud.git_failed", detail=str(e)))
+            return
+        print(t("cloud.created", path=str(dest)))
+        print(t("cloud.next_steps", path=str(dest), secrets=", ".join(cloud.SECRETS[:3])))
+        print(t("cloud.open_hint", path=str(dest)))
 
     def add_job(self) -> None:
         sources = db.list_sources(self.conn)

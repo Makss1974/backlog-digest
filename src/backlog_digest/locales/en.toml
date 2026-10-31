@@ -610,6 +610,12 @@ help_question = "the question (in quotes)"
 help_mcp = "MCP server: the library for Claude, Cursor and other assistants (the assistant starts it)"
 help_mcp_config = "show what to put into the assistant's settings"
 
+help_cloud = "cloud mode (GitHub Actions, optional): init DIR / run / pull / push / status"
+help_cloud_dest = "for init: a new folder that becomes a private GitHub repository"
+help_cloud_empty = "for init: empty, without the current sources and summaries"
+help_cloud_time = "for init: what time to run daily (your local time), default 07:00"
+help_cloud_add = "for run: links to add before the run (space-separated)"
+
 [questions]
 prompt = "Your question (Enter — back):"
 hint = "The answer comes from your finished summaries, with links to the notes."
@@ -620,3 +626,78 @@ nothing = "There are no summaries about this in the library."
 empty = "No finished summaries yet — make some first (menu → 3)."
 saved = "Answer saved: {path}"
 failed = "Could not answer: {detail}"
+
+[cloud]
+menu_item = "☁️ Cloud mode (GitHub) — works even when the computer is off"
+title = "Cloud mode"
+about = """If you like, the program can run daily on GitHub's servers (GitHub Actions) — for free, even when
+the computer is off. Your data and summaries live in your PRIVATE GitHub repository, and the keys in its
+protected store (Secrets). You can give tasks from your phone: repository page → Actions → Run workflow
+(links and how many). When the computer is on, it picks up the new summaries by itself.
+Sources from disk (folders, Telegram export) don't work in the cloud — the computer keeps doing them.
+You need a GitHub account and the git program."""
+ask_folder = "A new folder for cloud mode (it becomes the repository) (Enter — back)"
+ask_copy = "Move the current sources, queue and summaries there?"
+ask_time = "What time to run daily (HH:MM, your time)"
+here = "This folder is a cloud folder: {path}. Linked to GitHub: {remote}."
+pull_item = "Get changes from GitHub"
+push_item = "Send changes to GitHub"
+open_hint = "To work with the cloud folder on this computer: bdig --home \"{path}\" (or a shortcut: bdig --home ... shortcut)."
+no_git = "The git program was not found. Install it: https://git-scm.com/downloads"
+not_empty = "The folder is not empty: {path}. A new or empty folder is needed."
+need_folder = "Give a folder: bdig cloud init DIR"
+not_cloud = "This data folder is not a cloud folder. Create one: bdig cloud init DIR (or menu → 6)."
+copied = "Summaries copied: {notes}."
+copy_failed = "Notes that could not be copied: {n} (e.g. {example}). They stay in the old vault."
+created = "Cloud folder created: {path}"
+next_steps = """Next (once, on github.com):
+  1. New repository → any name → Private → Create (no README).
+  2. In the folder "{path}":  git remote add origin <repository address>  and  git push -u origin main
+  3. Repository → Settings → Secrets and variables → Actions → New repository secret:
+     {secrets} (the ones you have; at least one model key; RAINDROP_TOKEN if you use Raindrop).
+  4. Actions → backlog-digest → Run workflow — the first check. Then it runs daily by itself.
+Details are in README.md in this folder."""
+pulled = "Changes from GitHub received."
+pushed = "Changes sent to GitHub."
+no_remote = "No GitHub repository linked yet (git remote) — see README.md in the cloud folder."
+pull_merged = "The database changed both here and in the cloud — the cloud one is kept; your changes are in the git history (git log)."
+pull_failed = "Could not get changes from GitHub: {detail}"
+push_failed = "Could not send changes to GitHub: {detail}"
+git_failed = "Cloud mode (git): {detail}"
+status = "Cloud folder: {path}. Linked to GitHub: {remote}."
+yes = "yes"
+no = "no"
+bad_link = "  doesn't look like a link: {link}"
+added = "  added {n} → \"{name}\""
+readme = """# backlog-digest — cloud folder
+
+This is backlog-digest's data (database, settings) and the summaries (folder `notes/`).
+Every day at {time} (your time) GitHub runs the program by itself: updates the lists, makes summaries and saves them here.
+
+## How to connect (once)
+
+1. On github.com: **New repository** → any name → **Private** → Create (no README).
+2. In this folder: `git remote add origin <address>` and `git push -u origin main`.
+3. Repository → **Settings → Secrets and variables → Actions → New repository secret**:
+   {secrets} — the ones you have (at least one model key), plus `RAINDROP_TOKEN` if you use Raindrop.
+4. **Actions → backlog-digest → Run workflow** — the first check.
+
+## How to give tasks
+
+**Actions → backlog-digest → Run workflow**, from a computer or a phone (the GitHub app):
+- *add* — space-separated links: a YouTube playlist or video, `t.me/channel`, an article;
+- *limit* — how many items to do this time (empty — as in the settings).
+
+## On the computer
+
+`bdig --home <this folder>` — the program gets changes from GitHub before working and sends its own after.
+Summaries are in `notes/`: open it in Obsidian as a vault, or keep this folder inside your vault.
+Book folders and the Telegram export are not processed in the cloud — the computer does them.
+
+## Important
+
+- The repository must be **private**: your lists and summaries are here.
+- GitHub gives 2000 free minutes a month for private repositories; ~20 summaries a day take
+  roughly 300–600 minutes a month.
+- From GitHub's servers YouTube often refuses subtitles — then Gemini "watches" the video (a smaller daily limit).
+"""

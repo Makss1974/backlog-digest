@@ -149,6 +149,7 @@ the schedule: menu → **6** → add a job and turn on autostart. From then on i
 - **Ask the library** (menu → 9): an answer from all your summaries, with links to the notes.
 - **Claude, Cursor and other assistants** can read your library: `bdig mcp --config`.
 - **New items in your lists** are found by the schedule or by menu → 2 → 6.
+- **Without the computer:** cloud mode on GitHub (optional) — menu → 6 → 6, step by step in the folder's README.md.
 
 ## If something is wrong
 

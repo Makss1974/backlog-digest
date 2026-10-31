@@ -143,6 +143,15 @@ block to paste into their settings (`mcpServers`). The assistant only reads; it 
 Windows, launchd on macOS, a systemd timer or cron on Linux. If the computer was off, the job catches up the
 next time. A log goes to a file and to a "_Schedule log" note.
 
+**Cloud mode — optional, for those who want it.** The program can also run daily on GitHub's servers
+(GitHub Actions), for free and with the computer switched off: menu → 6 → 6 or
+`bdig cloud init FOLDER`. The folder becomes your **private** GitHub repository with the database, settings
+and the summaries in `notes/`; the keys go into the repository's Secrets. Tasks can be given from a phone:
+Actions → backlog-digest → Run workflow (links to add, how many). On the computer, `bdig --home FOLDER`
+gets the changes from GitHub before working and sends its own after. Folders and the Telegram export are
+not processed in the cloud — the computer does them. From GitHub's servers YouTube often refuses subtitles,
+so videos are "watched" by Gemini there. Step by step: the README.md that the program puts into the folder.
+
 **Gentle with limits.** Free models and YouTube have daily limits, so the program works in portions:
 1–3 minute pauses between subtitle requests, at most 30 subtitle requests a day (configurable), a queue of spare
 models, and if YouTube limits your address it stops asking and keeps summarizing what is already collected.

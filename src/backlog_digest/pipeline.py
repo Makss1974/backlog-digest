@@ -43,6 +43,7 @@ FOLDER = "folder"
 WEB = "web"
 RAINDROP = "raindrop"
 TELEGRAM = "telegram"
+LOCAL_KINDS = ("text", "media", "audio")   # файли з диска: у хмарі їх немає
 SOURCE_TYPES = (YOUTUBE, FOLDER, WEB, RAINDROP, TELEGRAM)
 
 Log = Callable[[str], None]
@@ -263,10 +264,15 @@ def _sync_youtube(conn: sqlite3.Connection, source: dict[str, Any], log: Log) ->
     return new
 
 
-def sync_all(conn: sqlite3.Connection, log: Log = print) -> int:
+def is_local_only(source: dict[str, Any]) -> bool:
+    """Джерело, яке читає файли з диска комп'ютера (тека, експорт Telegram) — у хмарі не оновлюється."""
+    return source["type"] == FOLDER or (source["type"] == TELEGRAM and not source["settings"].get("channels"))
+
+
+def sync_all(conn: sqlite3.Connection, log: Log = print, cloud: bool = False) -> int:
     new = 0
     for source in db.list_sources(conn):
-        if source["enabled"]:
+        if source["enabled"] and not (cloud and is_local_only(source)):
             log(t("sync.source", name=source["name"]))
             new += sync_source(conn, source, log)[0]
     return new
@@ -398,7 +404,7 @@ class Processor:
             self.log(t("process.requeued_whisper", n=n))
         rows = db.pending(self.conn, min(limit, self._fetch_left) if stage == FETCH else limit, source_id,
                           list_name, newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
-                          language=self.language)
+                          language=self.language, skip_kinds=LOCAL_KINDS if self.cfg.get("_cloud") else ())
         if not rows:
             self.log(t("process.nothing"))
             return stats
@@ -818,7 +824,7 @@ class Processor:
 
     def _write(self, item: dict[str, Any], summary: dict[str, Any]) -> Path:
         path = self.rewrite(item, summary, processed=db.now())
-        db.mark_done(self.conn, item["id"], str(path))
+        db.mark_done(self.conn, item["id"], notes.stored(path))
         return path
 
     def rewrite(self, item: dict[str, Any], summary: dict[str, Any], processed: str = "") -> Path:
@@ -830,7 +836,7 @@ class Processor:
         old = Path(item["note_path"]) if item.get("note_path") else None
         path = old if old and old.parent == directory else notes.note_path(
             directory, item["title"] or "", item["key"].split(":")[-1],
-            lambda p: db.note_path_taken(self.conn, str(p), item["id"]))
+            lambda p: db.note_path_taken(self.conn, notes.stored(p), item["id"]))
         content = notes.render_note(item, summary, self.labels(), language=self.language,
                                     processed=processed or item.get("processed_at") or db.now(),
                                     duration=youtube.format_duration(item["duration"]))
@@ -839,8 +845,8 @@ class Processor:
             with contextlib.suppress(OSError):
                 old.unlink(missing_ok=True)
                 notes.remove_empty_dirs(old.parent, base)
-            db.set_note_path(self.conn, item["id"], str(path))
-        item["note_path"] = str(path)
+            db.set_note_path(self.conn, item["id"], notes.stored(path))
+        item["note_path"] = notes.stored(path)
         return path
 
     def _error(self, item: dict[str, Any], stats: RunStats, message: str) -> None:

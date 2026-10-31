@@ -610,6 +610,12 @@ help_question = "la question (entre guillemets)"
 help_mcp = "serveur MCP : la bibliothèque pour Claude, Cursor et d'autres assistants (l'assistant le lance)"
 help_mcp_config = "afficher quoi mettre dans les réglages de l'assistant"
 
+help_cloud = "mode cloud (GitHub Actions, facultatif) : init DOSSIER / run / pull / push / status"
+help_cloud_dest = "pour init : un nouveau dossier qui deviendra un dépôt GitHub privé"
+help_cloud_empty = "pour init : vide, sans les sources ni les résumés actuels"
+help_cloud_time = "pour init : à quelle heure lancer chaque jour (heure locale), 07:00 par défaut"
+help_cloud_add = "pour run : liens à ajouter avant le lancement (séparés par des espaces)"
+
 [questions]
 prompt = "Votre question (Entrée — retour) :"
 hint = "La réponse vient de vos résumés terminés, avec des liens vers les notes."
@@ -620,3 +626,78 @@ nothing = "La bibliothèque ne contient pas de résumés sur ce sujet."
 empty = "Aucun résumé terminé pour l'instant — faites-en d'abord (menu → 3)."
 saved = "Réponse enregistrée : {path}"
 failed = "Impossible de répondre : {detail}"
+
+[cloud]
+menu_item = "☁️ Mode cloud (GitHub) — fonctionne même ordinateur éteint"
+title = "Mode cloud"
+about = """Si vous le souhaitez, le programme peut tourner chaque jour sur les serveurs de GitHub (GitHub Actions),
+gratuitement, même quand l'ordinateur est éteint. Vos données et résumés sont dans votre dépôt GitHub PRIVÉ,
+et les clés dans son coffre protégé (Secrets). Vous pouvez donner des tâches depuis le téléphone : page du dépôt →
+Actions → Run workflow (liens et combien). Allumé, l'ordinateur récupère lui-même les nouveaux résumés.
+Les sources sur disque (dossiers, export Telegram) ne marchent pas dans le cloud — l'ordinateur continue de les traiter.
+Il faut un compte GitHub et le programme git."""
+ask_folder = "Un nouveau dossier pour le mode cloud (il deviendra le dépôt) (Entrée — retour)"
+ask_copy = "Y déplacer les sources, la file d'attente et les résumés actuels ?"
+ask_time = "À quelle heure lancer chaque jour (HH:MM, votre heure)"
+here = "Ce dossier est un dossier cloud : {path}. Lié à GitHub : {remote}."
+pull_item = "Récupérer les changements de GitHub"
+push_item = "Envoyer les changements sur GitHub"
+open_hint = "Pour travailler avec le dossier cloud sur cet ordinateur : bdig --home \"{path}\" (ou un raccourci : bdig --home ... shortcut)."
+no_git = "Le programme git est introuvable. Installez-le : https://git-scm.com/downloads"
+not_empty = "Le dossier n'est pas vide : {path}. Il faut un dossier nouveau ou vide."
+need_folder = "Indiquez un dossier : bdig cloud init DOSSIER"
+not_cloud = "Ce dossier de données n'est pas un dossier cloud. En créer un : bdig cloud init DOSSIER (ou menu → 6)."
+copied = "Résumés copiés : {notes}."
+copy_failed = "Notes non copiées : {n} (p. ex. {example}). Elles restent dans l'ancien coffre."
+created = "Dossier cloud créé : {path}"
+next_steps = """Ensuite (une fois, sur github.com) :
+  1. New repository → nom au choix → Private → Create (sans README).
+  2. Dans le dossier « {path} » :  git remote add origin <adresse du dépôt>  et  git push -u origin main
+  3. Dépôt → Settings → Secrets and variables → Actions → New repository secret :
+     {secrets} (ceux que vous avez ; au moins une clé de modèle ; RAINDROP_TOKEN si vous utilisez Raindrop).
+  4. Actions → backlog-digest → Run workflow — premier test. Ensuite, chaque jour tout seul.
+Détails dans README.md de ce dossier."""
+pulled = "Changements de GitHub récupérés."
+pushed = "Changements envoyés sur GitHub."
+no_remote = "Aucun dépôt GitHub lié (git remote) — voir README.md dans le dossier cloud."
+pull_merged = "La base a changé ici et dans le cloud — celle du cloud est gardée ; vos changements sont dans l'historique git (git log)."
+pull_failed = "Impossible de récupérer les changements de GitHub : {detail}"
+push_failed = "Impossible d'envoyer les changements sur GitHub : {detail}"
+git_failed = "Mode cloud (git) : {detail}"
+status = "Dossier cloud : {path}. Lié à GitHub : {remote}."
+yes = "oui"
+no = "non"
+bad_link = "  ne ressemble pas à un lien : {link}"
+added = "  ajouté {n} → « {name} »"
+readme = """# backlog-digest — dossier cloud
+
+Ce sont les données de backlog-digest (base, réglages) et les résumés (dossier `notes/`).
+Chaque jour à {time} (votre heure), GitHub lance le programme : met à jour les listes, fait les résumés et les enregistre ici.
+
+## Connexion (une fois)
+
+1. Sur github.com : **New repository** → nom au choix → **Private** → Create (sans README).
+2. Dans ce dossier : `git remote add origin <adresse>` puis `git push -u origin main`.
+3. Dépôt → **Settings → Secrets and variables → Actions → New repository secret** :
+   {secrets} — ceux que vous avez (au moins une clé de modèle), et `RAINDROP_TOKEN` si vous utilisez Raindrop.
+4. **Actions → backlog-digest → Run workflow** — premier test.
+
+## Donner des tâches
+
+**Actions → backlog-digest → Run workflow**, depuis un ordinateur ou un téléphone (appli GitHub) :
+- *add* — liens séparés par des espaces : playlist ou vidéo YouTube, `t.me/chaîne`, article ;
+- *limit* — combien d'éléments cette fois (vide — comme dans les réglages).
+
+## Sur l'ordinateur
+
+`bdig --home <ce dossier>` — le programme récupère les changements de GitHub avant de travailler et envoie les siens après.
+Les résumés sont dans `notes/` : ouvrez-le dans Obsidian comme coffre, ou gardez ce dossier dans votre coffre.
+Les dossiers de livres et l'export Telegram ne sont pas traités dans le cloud — l'ordinateur s'en charge.
+
+## Important
+
+- Le dépôt doit être **privé** : vos listes et résumés s'y trouvent.
+- GitHub offre 2000 minutes par mois pour les dépôts privés ; ~20 résumés par jour prennent
+  environ 300 à 600 minutes par mois.
+- Depuis les serveurs de GitHub, YouTube refuse souvent les sous-titres — Gemini « regarde » alors la vidéo (limite quotidienne plus basse).
+"""

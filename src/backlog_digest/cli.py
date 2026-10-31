@@ -1,6 +1,6 @@
 """Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [--home ТЕКА]
 [menu | setup | doctor | add | sync | process | fetch | summarize | export | ask | mcp | shortcut | run-jobs |
-autostart]."""
+autostart | cloud]."""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, doctor, i18n
+from . import __version__, cloud, config, db, doctor, i18n
 from .i18n import t
 from .paths import HOME_ENV, get_paths
 
@@ -39,8 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.lang and cfg:
         cfg["general"]["ui_language"] = args.lang   # лише на цей запуск, у файл не записуємо
 
+    cloud_home = cloud.is_cloud(paths)
+    if cloud_home:
+        os.chdir(paths.config_dir)   # шляхи в хмарній теці відносні: notes/...
     if args.command == "doctor":
         return doctor.run(paths, network=not args.offline)
+    # хмарна тека на комп'ютері: спершу забрати зміни з GitHub, наприкінці — надіслати свої
+    sync_git = cloud_home and not cloud.in_actions() and args.command not in ("cloud", "mcp", "shortcut")
+    if sync_git:
+        _git_step(lambda: cloud.pull(paths.config_dir))
     if args.command == "shortcut":
         from .menu import make_shortcut
 
@@ -70,6 +77,15 @@ def main(argv: list[str] | None = None) -> int:
         return 130
     finally:
         conn.close()
+        if sync_git:
+            _git_step(lambda: cloud.push(paths.config_dir, f"bdig {args.command or 'menu'}"))
+
+
+def _git_step(step: Any) -> None:
+    try:
+        step()
+    except cloud.CloudError as e:
+        print(t("cloud.git_failed", detail=str(e)), file=sys.stderr)
 
 
 def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn: Any) -> int:
@@ -135,6 +151,8 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
             return 0
         mcp_server.serve(mcp_server.Server(conn, cfg, paths))
         return 0
+    if args.command == "cloud":
+        return _cloud(conn, paths, cfg, args)
     if args.command == "ask":
         from . import questions
 
@@ -236,6 +254,42 @@ def _export(conn: Any, paths: Any, cfg: dict[str, Any], args: argparse.Namespace
     return 0
 
 
+def _cloud(conn: Any, paths: Any, cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    """bdig cloud init ТЕКА | run | pull | push | status — хмарний режим (GitHub Actions), за бажанням."""
+    from . import schedule
+
+    try:
+        if args.action == "init":
+            if not args.dest:
+                print(t("cloud.need_folder"), file=sys.stderr)
+                return 2
+            at_time = schedule.parse_time(args.time or "07:00")
+            if not at_time:
+                print(t("schedule.bad_time"), file=sys.stderr)
+                return 2
+            dest = cloud.init(Path(args.dest), paths, cfg, conn, copy_data=not args.empty, at_time=at_time)
+            print(t("cloud.created", path=str(dest)))
+            print(t("cloud.next_steps", path=str(dest), secrets=", ".join(cloud.SECRETS[:3])))
+            return 0
+        if not cloud.is_cloud(paths):
+            print(t("cloud.not_cloud"), file=sys.stderr)
+            return 2
+        if args.action == "run":
+            limit = int(args.limit) if (args.limit or "").strip().isdigit() else None
+            cloud.run(conn, cfg, paths, limit=limit, add=(args.add or "").split())
+        elif args.action == "pull":
+            print(t("cloud.pulled") if cloud.pull(paths.config_dir) else t("cloud.no_remote"))
+        elif args.action == "push":
+            print(t("cloud.pushed") if cloud.push(paths.config_dir, "bdig cloud push") else t("cloud.no_remote"))
+        else:
+            remote = cloud.has_remote(paths.config_dir)
+            print(t("cloud.status", path=str(paths.config_dir), remote=t("cloud.yes") if remote else t("cloud.no")))
+    except cloud.CloudError as e:
+        print(t("cloud.git_failed", detail=str(e)), file=sys.stderr)
+        return 1
+    return 0
+
+
 def _autostart(paths: Any, action: str) -> int:
     from . import autostart
 
@@ -284,6 +338,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--job", type=int, action="append", default=[], metavar="ID", help=t("cli.help_job"))
     p = sub.add_parser("autostart", help=t("cli.help_autostart"))
     p.add_argument("action", choices=("on", "off", "status"))
+    p = sub.add_parser("cloud", help=t("cli.help_cloud"))
+    p.add_argument("action", choices=("init", "run", "pull", "push", "status"))
+    p.add_argument("dest", nargs="?", metavar="DIR", help=t("cli.help_cloud_dest"))
+    p.add_argument("--empty", action="store_true", help=t("cli.help_cloud_empty"))
+    p.add_argument("--time", metavar="HH:MM", help=t("cli.help_cloud_time"))
+    p.add_argument("--limit", metavar="N", help=t("cli.help_limit"))      # рядок: із форми GitHub може прийти ""
+    p.add_argument("--add", metavar="LINKS", help=t("cli.help_cloud_add"))
     for command in STAGES:
         p = sub.add_parser(command, help=t(f"cli.help_{command}"))
         p.add_argument("--limit", type=int, help=t("cli.help_limit"))

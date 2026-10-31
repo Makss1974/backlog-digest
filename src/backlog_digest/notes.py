@@ -110,6 +110,12 @@ def note_path(directory: Path, title: str, unique: str, is_taken: Callable[[Path
     return path
 
 
+def stored(path: Path) -> str:
+    """Шлях нотатки для бази: відносний (хмарний режим, тека «notes») — з «/», щоб однаково читався
+    і на Windows, і на сервері Linux; абсолютний — як є."""
+    return str(path) if path.is_absolute() else path.as_posix()
+
+
 def remove_empty_dirs(d: Path, stop: Path) -> None:
     """Прибирає порожні теки від d угору до stop (не включно) — після переїзду нотатки в іншу тему."""
     try:

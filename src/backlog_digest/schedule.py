@@ -161,6 +161,8 @@ class Runner:
         if steps.get("sync"):
             self.log(f"\n--- {t('schedule.step_sync')}")
             for source in self.scope_sources(job):
+                if self.cfg.get("_cloud") and pipeline.is_local_only(source):
+                    continue   # у хмарі немає тек і експортів з диска комп'ютера
                 pipeline.sync_source(self.conn, source, self.log)
         stopped = ""
         if steps.get("process"):

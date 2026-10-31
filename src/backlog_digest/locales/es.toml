@@ -610,6 +610,12 @@ help_question = "la pregunta (entre comillas)"
 help_mcp = "servidor MCP: la biblioteca para Claude, Cursor y otros asistentes (lo inicia el asistente)"
 help_mcp_config = "mostrar qué poner en la configuración del asistente"
 
+help_cloud = "modo nube (GitHub Actions, opcional): init CARPETA / run / pull / push / status"
+help_cloud_dest = "para init: una carpeta nueva que será un repositorio privado de GitHub"
+help_cloud_empty = "para init: vacía, sin las fuentes ni los resúmenes actuales"
+help_cloud_time = "para init: a qué hora ejecutar cada día (hora local), por defecto 07:00"
+help_cloud_add = "para run: enlaces que añadir antes de ejecutar (separados por espacios)"
+
 [questions]
 prompt = "Su pregunta (Intro — volver):"
 hint = "La respuesta sale de sus resúmenes terminados, con enlaces a las notas."
@@ -620,3 +626,78 @@ nothing = "No hay resúmenes sobre esto en la biblioteca."
 empty = "Aún no hay resúmenes terminados — haga algunos primero (menú → 3)."
 saved = "Respuesta guardada: {path}"
 failed = "No se pudo responder: {detail}"
+
+[cloud]
+menu_item = "☁️ Modo nube (GitHub) — funciona aunque el ordenador esté apagado"
+title = "Modo nube"
+about = """Si quiere, el programa puede ejecutarse cada día en los servidores de GitHub (GitHub Actions), gratis,
+aunque el ordenador esté apagado. Sus datos y resúmenes estarán en su repositorio PRIVADO de GitHub, y las
+claves en su almacén protegido (Secrets). Puede dar tareas desde el móvil: página del repositorio → Actions →
+Run workflow (enlaces y cuántos). Encendido, el ordenador recoge solo los resúmenes nuevos.
+Las fuentes del disco (carpetas, exportación de Telegram) no funcionan en la nube: las sigue haciendo el ordenador.
+Necesita una cuenta de GitHub y el programa git."""
+ask_folder = "Una carpeta nueva para el modo nube (será el repositorio) (Enter — volver)"
+ask_copy = "¿Mover allí las fuentes, la cola y los resúmenes actuales?"
+ask_time = "A qué hora ejecutar cada día (HH:MM, su hora)"
+here = "Esta carpeta es de la nube: {path}. Conectada a GitHub: {remote}."
+pull_item = "Recibir cambios de GitHub"
+push_item = "Enviar cambios a GitHub"
+open_hint = "Para trabajar con la carpeta de la nube en este ordenador: bdig --home \"{path}\" (o un acceso directo: bdig --home ... shortcut)."
+no_git = "No se encontró el programa git. Instálelo: https://git-scm.com/downloads"
+not_empty = "La carpeta no está vacía: {path}. Hace falta una carpeta nueva o vacía."
+need_folder = "Indique una carpeta: bdig cloud init CARPETA"
+not_cloud = "Esta carpeta de datos no es de la nube. Crear una: bdig cloud init CARPETA (o menú → 6)."
+copied = "Resúmenes copiados: {notes}."
+copy_failed = "Notas que no se pudieron copiar: {n} (p. ej. {example}). Siguen en la bóveda anterior."
+created = "Carpeta de la nube creada: {path}"
+next_steps = """Después (una vez, en github.com):
+  1. New repository → cualquier nombre → Private → Create (sin README).
+  2. En la carpeta «{path}»:  git remote add origin <dirección del repositorio>  y  git push -u origin main
+  3. Repositorio → Settings → Secrets and variables → Actions → New repository secret:
+     {secrets} (las que tenga; al menos una clave de modelo; RAINDROP_TOKEN si usa Raindrop).
+  4. Actions → backlog-digest → Run workflow — la primera prueba. Después, cada día solo.
+Detalles en README.md de esta carpeta."""
+pulled = "Cambios de GitHub recibidos."
+pushed = "Cambios enviados a GitHub."
+no_remote = "Aún no hay un repositorio de GitHub conectado (git remote): vea README.md en la carpeta de la nube."
+pull_merged = "La base cambió aquí y en la nube: se queda la de la nube; sus cambios están en el historial de git (git log)."
+pull_failed = "No se pudieron recibir los cambios de GitHub: {detail}"
+push_failed = "No se pudieron enviar los cambios a GitHub: {detail}"
+git_failed = "Modo nube (git): {detail}"
+status = "Carpeta de la nube: {path}. Conectada a GitHub: {remote}."
+yes = "sí"
+no = "no"
+bad_link = "  no parece un enlace: {link}"
+added = "  añadido {n} → «{name}»"
+readme = """# backlog-digest — carpeta de la nube
+
+Son los datos de backlog-digest (base, ajustes) y los resúmenes (carpeta `notes/`).
+Cada día a las {time} (su hora) GitHub ejecuta el programa: actualiza las listas, hace resúmenes y los guarda aquí.
+
+## Cómo conectar (una vez)
+
+1. En github.com: **New repository** → cualquier nombre → **Private** → Create (sin README).
+2. En esta carpeta: `git remote add origin <dirección>` y `git push -u origin main`.
+3. Repositorio → **Settings → Secrets and variables → Actions → New repository secret**:
+   {secrets} — las que tenga (al menos una clave de modelo), y `RAINDROP_TOKEN` si usa Raindrop.
+4. **Actions → backlog-digest → Run workflow** — la primera prueba.
+
+## Cómo dar tareas
+
+**Actions → backlog-digest → Run workflow**, desde el ordenador o el móvil (app de GitHub):
+- *add* — enlaces separados por espacios: lista o vídeo de YouTube, `t.me/canal`, artículo;
+- *limit* — cuántos elementos esta vez (vacío: como en los ajustes).
+
+## En el ordenador
+
+`bdig --home <esta carpeta>` — el programa recibe los cambios de GitHub antes de trabajar y envía los suyos después.
+Los resúmenes están en `notes/`: ábrala en Obsidian como bóveda o mantenga esta carpeta dentro de su bóveda.
+Las carpetas de libros y la exportación de Telegram no se procesan en la nube: las hace el ordenador.
+
+## Importante
+
+- El repositorio debe ser **privado**: aquí están sus listas y resúmenes.
+- GitHub da 2000 minutos gratis al mes para repositorios privados; ~20 resúmenes al día ocupan
+  unos 300–600 minutos al mes.
+- Desde los servidores de GitHub, YouTube a menudo niega los subtítulos: entonces Gemini «mira» el vídeo (menor límite diario).
+"""

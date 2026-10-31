@@ -34,8 +34,11 @@ anyway, it stops asking YouTube (retries would only make it longer) and keeps su
 collected. Usually waiting a day is enough; the schedule carries on by itself.
 
 **Can I run it on a cloud server?**
-Better not: from cloud provider addresses (AWS and the like) YouTube blocks subtitles almost immediately.
-The program is meant for a home computer.
+Yes, optionally — cloud mode on GitHub Actions: menu → 6 → 6 or `bdig cloud init FOLDER`. It is free for a
+private repository (2000 minutes a month; about 20 summaries a day take 300–600) and runs with the computer
+switched off. Keep in mind: from cloud addresses YouTube often refuses subtitles, so there videos are "watched"
+by Gemini, whose free daily limit is smaller. Folders and the Telegram export stay on the computer. Running it on
+your own rented server is possible too, but the home computer remains the main way.
 
 **A video has no subtitles.**
 With a Gemini key the program does not give up: Gemini watches the video itself by its link (Google opens it,

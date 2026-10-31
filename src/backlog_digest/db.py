@@ -309,11 +309,15 @@ def _stage_filter(stage: str, language: str) -> tuple[str, list[Any]]:
 
 def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
             list_name: str | None = None, newest_first: bool = False, stage: str = ALL,
-            language: str = "") -> list[sqlite3.Row]:
-    """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку (або з кінця списку)."""
+            language: str = "", skip_kinds: tuple[str, ...] = ()) -> list[sqlite3.Row]:
+    """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку (або з кінця списку).
+    skip_kinds — не брати елементи цих видів (у хмарі — файли з диска комп'ютера)."""
     where, args = _stage_filter(stage, language)
     sql = "SELECT * FROM items WHERE status IN (?, ?)" + where
     args = [*QUEUED, *args]
+    if skip_kinds:
+        sql += f" AND kind NOT IN ({', '.join('?' * len(skip_kinds))})"
+        args += list(skip_kinds)
     if source_id is not None:
         sql += " AND source_id=?"
         args.append(source_id)

@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## Unreleased
 
+### Cloud mode (optional)
+- **`bdig cloud init FOLDER`** (menu → Schedule → 6): a folder that becomes your private GitHub repository —
+  database, settings, summaries in `notes/` and a GitHub Actions workflow that runs daily, even with the
+  computer off. Tasks can be given from a phone: Actions → Run workflow with links to add and how many.
+  `bdig cloud run | pull | push | status`. On the computer a cloud folder gets the changes from GitHub before
+  each command and sends its own after; if the database changed in both places, the cloud copy wins and the
+  local one stays in the git history. Folders and Telegram exports are not processed in the cloud.
+- Note paths inside a cloud folder are relative (`notes/...`), so the same database works on Windows and Linux.
+
+### Fixes
+- A private video no longer makes Gemini look like a rejected key (HTTP 403): the video gets an error, the run goes on.
+- `--home` with a relative path is turned into a full one.
+
 ### Sources
 - **Public Telegram channels by link** (`t.me/name`, menu → Sources → 5 → 2, `bdig add t.me/name`): read from
   the public `t.me/s/` page without login or export. New posts are picked up on every update; older posts of a
