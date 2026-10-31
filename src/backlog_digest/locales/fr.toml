@@ -385,6 +385,17 @@ report_done = "Groupes de répétitions : {similar}, hors thème : {off_topic}."
 index_done = "Index de la liste : {path}"
 open_index = "Ouvrir l'index ?"
 
+[export]
+help = "Les résumés deviennent des signets dans une collection Raindrop à part : sous-collections =\nlistes et thèmes ; la note contient le verdict, la note et l'essentiel. Vos signets restent tels quels."
+choose = "Numéros des listes séparés par des espaces (Entrée — toutes) :"
+root = "Collection racine dans Raindrop"
+plan = "Nouveaux : {new}, modifiés : {changed}, inchangés : {same}."
+no_link = "Sans lien (livres et fichiers du disque) — ignorés : {n}."
+confirm = "Envoyer dans Raindrop, dans la collection « {root} » ?"
+progress = "  envoyé {done} sur {total}"
+done = "Terminé : ajoutés {created}, mis à jour {updated}, inchangés {unchanged}, nouvelles collections {collections}."
+bad_answer = "Raindrop a répondu de façon incomplète — réessayez."
+
 [plural.items]
 one = "{n} élément"
 other = "{n} éléments"
@@ -420,3 +431,5 @@ help_fetch = "seulement récupérer les sous-titres (lent ; sans modèles)"
 help_summarize = "seulement les résumés à partir des sous-titres déjà récupérés (sans YouTube)"
 help_only = "seulement ce dossier de favoris et ses sous-dossiers, p. ex. \"Base/Science\" (répétable)"
 help_shortcut = "créer un raccourci sur le bureau : le programme dans sa propre fenêtre"
+help_export = "envoyer les résumés dans Raindrop (seulement le nouveau et le modifié)"
+help_root = "collection racine dans Raindrop"

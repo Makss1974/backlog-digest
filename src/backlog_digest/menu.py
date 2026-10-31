@@ -32,7 +32,7 @@ class Menu:
             ("2", t("menu.sources"), self.sources_menu),
             ("3", t("menu.summaries"), self.process),
             ("4", t("menu.sorting"), self.sort),
-            ("5", t("menu.raindrop"), soon(4)),
+            ("5", t("menu.raindrop"), self.export_raindrop),
             ("6", t("menu.schedule"), soon(5)),
             ("7", t("menu.doctor"), self.run_doctor),
             ("8", t("menu.settings"), self.settings),
@@ -143,6 +143,49 @@ class Menu:
         from . import sorting_menu
 
         sorting_menu.run(self.conn, self.cfg, self.paths)
+
+    def export_raindrop(self) -> None:
+        """Конспекти — у Raindrop: вибрані списки, коренева колекція, перевірка, згода, надсилання."""
+        from . import export, notes
+
+        language = self.cfg["general"]["summary_language"]
+        lists = db.done_lists(self.conn, language)
+        if not lists:
+            print(t("sort.no_lists"))
+            return
+        print(t("export.help"))
+        for i, r in enumerate(lists, 1):
+            print(f"  {i:>3}. {r['source_name']} / {r['list_name'] or '—'} — {t('sort.done', n=r['done'])}")
+        raw = ask(f"{t('export.choose')} ")
+        numbers = [int(x) for x in raw.replace(",", " ").split() if x.isdigit()]
+        if raw and (not numbers or any(not 1 <= n <= len(lists) for n in numbers)):
+            print(t("raindrop.bad_choice"))
+            return
+        picked = [lists[n - 1] for n in numbers] if numbers else lists
+        token = self.raindrop_token()
+        if not token:
+            return
+        default = self.cfg["raindrop"]["export_root"] or export.DEFAULT_ROOT
+        root = ask(f"{t('export.root')} [{default}]: ") or default
+        if root != self.cfg["raindrop"]["export_root"]:
+            self.cfg["raindrop"]["export_root"] = root
+            self.save()
+        labels = notes.load_labels(self.paths, language)
+        plan = export.plan(self.conn, [(int(r["source_id"]), str(r["list_name"])) for r in picked], root,
+                           language, labels)
+        print(t("export.plan", new=len(plan.new), changed=len(plan.changed), same=len(plan.same)))
+        if plan.no_link:
+            print(t("export.no_link", n=plan.no_link))
+        if not ask_yes(t("export.confirm", root=root)):
+            print(t("sort.cancelled"))
+            return
+        try:
+            stats = export.Exporter(self.conn, token).run(plan)
+        except raindrop.RaindropError as e:
+            print(t("raindrop.failed", detail=str(e)))
+            return
+        print(t("export.done", created=stats.created, updated=stats.updated, unchanged=stats.unchanged,
+                collections=stats.collections))
 
     def run_doctor(self) -> None:
         doctor.run(self.paths)

@@ -385,6 +385,17 @@ report_done = "Repeat groups: {similar}, off-topic: {off_topic}."
 index_done = "List index: {path}"
 open_index = "Open the index?"
 
+[export]
+help = "Summaries become bookmarks in a separate Raindrop collection: sub-collections are lists and\ntopics; the note holds the verdict, the score and the key points. Your bookmarks stay as they are."
+choose = "List numbers separated by spaces (Enter — all):"
+root = "Root collection in Raindrop"
+plan = "New: {new}, changed: {changed}, unchanged: {same}."
+no_link = "Without a link (books and files from disk) — skipped: {n}."
+confirm = "Send to Raindrop, into the “{root}” collection?"
+progress = "  sent {done} of {total}"
+done = "Done: added {created}, updated {updated}, unchanged {unchanged}, new collections {collections}."
+bad_answer = "Raindrop answered incompletely — try again."
+
 [plural.items]
 one = "{n} item"
 other = "{n} items"
@@ -420,3 +431,5 @@ help_fetch = "only collect subtitles (slow; no models needed)"
 help_summarize = "only summaries from already collected subtitles (no YouTube)"
 help_only = "only this bookmarks folder with subfolders, e.g. \"Base/Science\" (can be repeated)"
 help_shortcut = "create a desktop shortcut: the program in its own window"
+help_export = "send summaries to Raindrop (only new and changed)"
+help_root = "root collection in Raindrop"

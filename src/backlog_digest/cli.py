@@ -99,6 +99,8 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
     if args.command == "sync":
         print(t("sources.synced", new=pipeline.sync_all(conn)))
         return 0
+    if args.command == "export":
+        return _export(conn, paths, cfg, args)
     if args.command in STAGES:
         limit = args.limit or cfg["limits"]["per_run"]
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
@@ -141,6 +143,27 @@ def _add_raindrop(conn: Any, paths: Any, args: argparse.Namespace) -> int:
     return 0
 
 
+def _export(conn: Any, paths: Any, cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    """bdig export [--root НАЗВА] — усі списки з конспектами в Raindrop (лише нове й змінене)."""
+    from . import export, keys, notes, raindrop
+
+    token = keys.get_secret(raindrop.TOKEN, paths)
+    if not token:
+        print(t("raindrop.no_token"), file=sys.stderr)
+        return 2
+    language = cfg["general"]["summary_language"]
+    lists = [(int(r["source_id"]), str(r["list_name"])) for r in db.done_lists(conn, language)]
+    root = args.root or cfg["raindrop"]["export_root"] or export.DEFAULT_ROOT
+    try:
+        stats = export.export(conn, token, lists, root, language, notes.load_labels(paths, language))
+    except raindrop.RaindropError as e:
+        print(t("raindrop.failed", detail=str(e)), file=sys.stderr)
+        return 1
+    print(t("export.done", created=stats.created, updated=stats.updated, unchanged=stats.unchanged,
+            collections=stats.collections))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="backlog-digest", description=t("cli.description"))
     parser.add_argument("--version", action="version", version=f"backlog-digest {__version__}")
@@ -156,6 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
     p.add_argument("--only", action="append", default=[], metavar="FOLDER", help=t("cli.help_only"))
     sub.add_parser("sync", help=t("cli.help_sync"))
+    p = sub.add_parser("export", help=t("cli.help_export"))
+    p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))
     sub.add_parser("shortcut", help=t("cli.help_shortcut"))
     for command in STAGES:
         p = sub.add_parser(command, help=t(f"cli.help_{command}"))

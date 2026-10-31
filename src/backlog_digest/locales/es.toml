@@ -385,6 +385,17 @@ report_done = "Grupos de repeticiones: {similar}, fuera de tema: {off_topic}."
 index_done = "Índice de la lista: {path}"
 open_index = "¿Abrir el índice?"
 
+[export]
+help = "Los resúmenes se convierten en marcadores en una colección aparte de Raindrop: subcolecciones =\nlistas y temas; la nota lleva el veredicto, la puntuación y lo esencial. Tus marcadores no cambian."
+choose = "Números de listas separados por espacios (Enter — todas):"
+root = "Colección raíz en Raindrop"
+plan = "Nuevos: {new}, cambiados: {changed}, sin cambios: {same}."
+no_link = "Sin enlace (libros y archivos del disco) — omitidos: {n}."
+confirm = "¿Enviar a Raindrop, a la colección «{root}»?"
+progress = "  enviado {done} de {total}"
+done = "Listo: añadidos {created}, actualizados {updated}, sin cambios {unchanged}, colecciones nuevas {collections}."
+bad_answer = "Raindrop respondió de forma incompleta — inténtalo de nuevo."
+
 [plural.items]
 one = "{n} elemento"
 other = "{n} elementos"
@@ -420,3 +431,5 @@ help_fetch = "solo obtener los subtítulos (lento; sin modelos)"
 help_summarize = "solo resúmenes de los subtítulos ya obtenidos (sin YouTube)"
 help_only = "solo esta carpeta de marcadores con subcarpetas, p. ej. \"Base/Ciencia\" (se puede repetir)"
 help_shortcut = "crear un acceso directo en el escritorio: el programa en su propia ventana"
+help_export = "enviar resúmenes a Raindrop (solo lo nuevo y lo cambiado)"
+help_root = "colección raíz en Raindrop"

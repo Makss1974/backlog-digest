@@ -113,7 +113,8 @@ def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
             log(t("sync.read_progress", n=n))
 
     try:
-        links = raindrop.links(token, source["settings"].get("collections") or None, progress)
+        links = raindrop.links(token, source["settings"].get("collections") or None, progress,
+                               exclude=db.export_roots(conn))
     except raindrop.RaindropError as e:
         log(t("sync.raindrop_error", detail=str(e)))
         return 0

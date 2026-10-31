@@ -36,6 +36,9 @@ DEFAULTS: dict[str, Any] = {
         "languages": [],          # бажані мови субтитрів ([] — англійська, потім мова конспектів)
         "newest_first": False,    # обробляти спершу нові відео списку
     },
+    "raindrop": {
+        "export_root": "Backlog digest",   # коренева колекція для експорту конспектів
+    },
     "models": {
         "order": ["gemini", "openrouter", "deepseek"],   # черга провайдерів: перший — основний
         "thinking": "fast",       # «роздуми» моделі: fast / deep / auto

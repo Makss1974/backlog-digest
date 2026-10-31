@@ -128,6 +128,22 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (source_id, list_name)
     );
     """,
+    # 6 — експорт у Raindrop: які колекції створено й яка закладка відповідає якому елементу,
+    #     щоб повторний експорт оновлював, а не дублював
+    """
+    CREATE TABLE export_collections (
+        path          TEXT PRIMARY KEY,           -- «Корінь/Список/Тема/Підтема»
+        collection_id INTEGER NOT NULL,
+        is_root       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE exported (
+        item_id       INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+        raindrop_id   INTEGER NOT NULL,
+        collection_id INTEGER NOT NULL,
+        hash          TEXT NOT NULL,              -- відбиток надісланого: не змінився — не надсилаємо
+        exported_at   TEXT NOT NULL
+    );
+    """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -464,3 +480,37 @@ def save_report(conn: sqlite3.Connection, source_id: int, list_name: str, report
 
 def lists_with_scheme(conn: sqlite3.Connection) -> list[tuple[int, str]]:
     return [(r[0], r[1]) for r in conn.execute("SELECT source_id, list_name FROM schemes WHERE topics<>'[]'")]
+
+
+# ---------------------------------------------------------------- експорт у Raindrop
+
+def export_collections(conn: sqlite3.Connection) -> dict[str, int]:
+    return {r["path"]: int(r["collection_id"]) for r in conn.execute("SELECT * FROM export_collections")}
+
+
+def save_export_collection(conn: sqlite3.Connection, path: str, collection_id: int, is_root: bool) -> None:
+    conn.execute("INSERT OR REPLACE INTO export_collections (path, collection_id, is_root) VALUES (?, ?, ?)",
+                 (path, collection_id, int(is_root)))
+    conn.commit()
+
+
+def forget_export_collections(conn: sqlite3.Connection, paths: list[str]) -> None:
+    conn.executemany("DELETE FROM export_collections WHERE path=?", [(p,) for p in paths])
+    conn.commit()
+
+
+def export_roots(conn: sqlite3.Connection) -> list[int]:
+    """Кореневі колекції експорту — їх не імпортуємо назад."""
+    return [int(r[0]) for r in conn.execute("SELECT collection_id FROM export_collections WHERE is_root=1")]
+
+
+def exported(conn: sqlite3.Connection) -> dict[int, sqlite3.Row]:
+    return {int(r["item_id"]): r for r in conn.execute("SELECT * FROM exported")}
+
+
+def save_exported(conn: sqlite3.Connection, rows: list[tuple[int, int, int, str]]) -> None:
+    """rows: (item_id, raindrop_id, collection_id, hash)."""
+    stamp = now()
+    conn.executemany("INSERT OR REPLACE INTO exported (item_id, raindrop_id, collection_id, hash, exported_at) "
+                     "VALUES (?, ?, ?, ?, ?)", [(*r, stamp) for r in rows])
+    conn.commit()

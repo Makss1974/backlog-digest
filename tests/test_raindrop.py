@@ -126,3 +126,20 @@ def test_cli_add_raindrop(api, paths, monkeypatch, capsys):
     assert db.status_counts(conn)[db.NEW] == 2
     conn.close()
     assert TOKEN not in capsys.readouterr().out
+
+
+def test_links_skip_export_collection(api):
+    links = raindrop.links(TOKEN, exclude=[1])   # разом із вкладеною «Фізика»
+    assert not {"https://a.example/one", "https://a.example/two"} & {lk.url for lk in links}
+
+
+def test_call_sends_json(monkeypatch):
+    sent = {}
+
+    def urlopen(req, timeout=0):
+        sent.update(method=req.get_method(), body=json.loads(req.data), type=req.get_header("Content-type"))
+        return Response(json.dumps({"result": True, "item": {"_id": 5}}).encode("utf-8"))
+
+    monkeypatch.setattr(raindrop.urllib.request, "urlopen", urlopen)
+    assert raindrop.call(TOKEN, "POST", "/collection", body={"title": "Тест"})["item"]["_id"] == 5
+    assert sent == {"method": "POST", "body": {"title": "Тест"}, "type": "application/json"}
