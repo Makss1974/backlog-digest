@@ -181,9 +181,11 @@ def test_watch_payload_and_answer(tmp_path, monkeypatch):
     assert "videoMetadata" not in calls[1][3]["contents"][0]["parts"][0]
 
 
-def test_watch_rejected_video_does_not_disable_models(tmp_path, monkeypatch):
+@pytest.mark.parametrize("status,message", [(400, "Request contains an invalid argument."),
+                                            (403, "The caller does not have permission")])   # приватне відео
+def test_watch_rejected_video_does_not_disable_models(tmp_path, monkeypatch, status, message):
     def fake(method, url, key, payload=None, timeout=0, key_header=""):
-        raise llm.HttpError(400, "Request contains an invalid argument.")
+        raise llm.HttpError(status, message)
 
     monkeypatch.setattr(llm, "_request", fake)
     chain = gemini_chain(tmp_path)

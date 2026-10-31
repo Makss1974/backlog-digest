@@ -343,7 +343,8 @@ class Chain:
             data = _request("POST", f"{GEMINI_NATIVE}models/{slot.model}:generateContent", slot.key, payload,
                             timeout=TIMEOUT * 3, key_header="x-goog-api-key")
         except HttpError as e:
-            if e.status == 400:   # відео недоступне Gemini — справа у відео, не в моделі
+            if e.status == 400 or (e.status == 403 and "caller does not have permission" in e.message.lower()):
+                # відео недоступне Gemini (приватне, видалене) — справа у відео, не в моделі й не в ключі
                 raise VideoRejected(e.message) from e
             if e.status == 429 and not retried and not any(h in e.message.lower() for h in _DAILY_HINTS):
                 self.log(t("llm.waiting", model=slot.name, seconds=int(self.rate_limit_wait)))
