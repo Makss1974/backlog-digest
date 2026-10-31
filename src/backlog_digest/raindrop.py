@@ -102,7 +102,8 @@ def collections(token: str) -> list[Collection]:
         title = str(c.get("title") or c["_id"]).replace("/", "∕")   # «/» у назві не має ламати шлях
         return f"{path(by_id[p], depth + 1)}/{title}" if p is not None and depth < 20 else title
 
-    out = [Collection(int(c["_id"]), path(c), int(c.get("count") or 0), parent_of(c)) for c in raw]
+    # та сама колекція трапляється в обох відповідях — беремо кожну один раз
+    out = [Collection(int(c["_id"]), path(c), int(c.get("count") or 0), parent_of(c)) for c in by_id.values()]
     return sorted(out, key=lambda c: c.title.lower())
 
 

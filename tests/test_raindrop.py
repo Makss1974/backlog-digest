@@ -11,7 +11,8 @@ from backlog_digest import cli, config, db, keys, menu, pipeline, raindrop
 
 TOKEN = "test-token-123"
 COLLECTIONS = [{"_id": 1, "title": "Наука", "count": 3}, {"_id": 2, "title": "Read later", "count": 1}]
-CHILDREN = [{"_id": 11, "title": "Фізика", "count": 1, "parent": {"$id": 1}}]
+CHILDREN = [{"_id": 11, "title": "Фізика", "count": 1, "parent": {"$id": 1}},
+            {"_id": 2, "title": "Read later", "count": 1}]   # Raindrop буває повторює корінь тут
 
 
 def drop(n, link, cid, type_="article"):
