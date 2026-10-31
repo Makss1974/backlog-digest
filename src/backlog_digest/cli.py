@@ -1,5 +1,5 @@
 """Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [--home ТЕКА]
-[menu | doctor | add | sync | process | fetch | summarize | export | shortcut | run-jobs | autostart]."""
+[menu | setup | doctor | add | sync | process | fetch | summarize | export | shortcut | run-jobs | autostart]."""
 from __future__ import annotations
 
 import argparse
@@ -112,11 +112,16 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         return 0
     if args.command == "autostart":
         return _autostart(paths, args.action)
+    if args.command == "setup":
+        from . import wizard
+
+        wizard.run(Menu(paths, cfg, conn))
+        return 0
     if args.command in STAGES:
         limit = args.limit or cfg["limits"]["per_run"]
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
         return 3 if stats.stopped else 0
-    Menu(paths, cfg, conn).run()
+    Menu(paths, cfg, conn).run(offer_wizard=True)
     return 0
 
 
@@ -211,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("export", help=t("cli.help_export"))
     p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))
     sub.add_parser("shortcut", help=t("cli.help_shortcut"))
+    sub.add_parser("setup", help=t("cli.help_setup"))
     p = sub.add_parser("run-jobs", help=t("cli.help_run_jobs"))
     p.add_argument("--force", action="store_true", help=t("cli.help_force"))
     p.add_argument("--job", type=int, action="append", default=[], metavar="ID", help=t("cli.help_job"))

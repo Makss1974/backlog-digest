@@ -26,6 +26,7 @@ from . import (
     schedule,
     shortcut,
     web,
+    wizard,
 )
 from .i18n import t
 from .paths import Paths
@@ -54,8 +55,16 @@ class Menu:
             ("8", t("menu.settings"), self.settings),
         ]
 
-    def run(self) -> None:
+    def run(self, offer_wizard: bool = False) -> None:
         set_window_title(t("app.title", version=__version__))
+        if offer_wizard and wizard.is_first_run(self):
+            try:
+                if ask_yes(t("wizard.offer")):
+                    wizard.run(self)
+            except KeyboardInterrupt:
+                print(f"\n{t('menu.interrupted')}")
+            except EOFError:
+                return
         while True:
             print(f"\n{LINE}")
             for line in self.panel():
@@ -584,8 +593,9 @@ class Menu:
             print(f"  5. {t('settings.show_paths')}")
             print(f"  6. {t('settings.open_config_dir')}")
             print(f"  7. {t('settings.shortcut')}")
+            print(f"  8. {t('settings.wizard')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 7)
+            choice = ask_int(t("settings.choose"), 0, 0, 8)
             if choice == 0:
                 return
             if choice == 1:
@@ -602,11 +612,14 @@ class Menu:
                 open_path(self.paths.config_dir)
             elif choice == 7:
                 make_shortcut(self.paths)
+            elif choice == 8:
+                wizard.run(self)
             print()
 
-    def choose_output(self) -> bool:
+    def choose_output(self, explain: bool = True) -> bool:
         """Тека, куди складати конспекти (сховище Obsidian або будь-яка тека). True — задано."""
-        print(t("settings.output_help"))
+        if explain:
+            print(t("settings.output_help"))
         current = self.cfg["output"]["path"]
         raw = ask(f"{t('settings.output_path')}" + (f" [{current}]" if current else "") + ": ").strip('"')
         if not raw:
@@ -620,14 +633,14 @@ class Menu:
         self.save()
         return True
 
-    def model_keys(self) -> None:
+    def model_keys(self, default: int = 0) -> None:
         providers = [llm.BUILTIN[n] for n in ("gemini", "openrouter", "deepseek")]
         for i, p in enumerate(providers, 1):
             src = keys.secret_source(p.key_env or "", self.paths)
             state = t("settings.key_set") if src else t("settings.key_not_set")
             print(f"  {i}. {p.name.capitalize()} — {state}  ({p.signup_url})")
         print(f"  0. {t('menu.back')}")
-        n = ask_int(t("settings.choose"), 0, 0, len(providers))
+        n = ask_int(t("settings.choose"), default, 0, len(providers))
         if not n:
             return
         p = providers[n - 1]

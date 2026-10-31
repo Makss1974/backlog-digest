@@ -13,7 +13,7 @@ def offline(monkeypatch):
 
 
 def quit_menu(monkeypatch):
-    answers = iter(["q"])
+    answers = iter(["", "q"])     # перший запуск: від майстра відмовились (Enter), потім вихід
     monkeypatch.setattr(builtins, "input", lambda prompt="": next(answers))
 
 
