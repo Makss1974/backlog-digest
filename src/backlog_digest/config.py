@@ -35,8 +35,13 @@ DEFAULTS: dict[str, Any] = {
         "delay_max": 180,
         "languages": [],          # бажані мови субтитрів ([] — англійська, потім мова конспектів)
         "newest_first": False,    # обробляти спершу нові відео списку
-        "no_subtitles": "gemini", # відео без субтитрів: gemini — Gemini «дивиться» відео за посиланням; skip
+        "no_subtitles": "gemini", # відео без субтитрів: gemini — Gemini «дивиться» відео за посиланням;
+                                  # whisper — звук розпізнається на цьому комп'ютері; skip — пропустити
         "part_minutes": 20,       # довше відео без субтитрів Gemini дивиться частинами такої довжини
+    },
+    "whisper": {
+        "model": "small",         # модель розпізнавання: tiny / base / small / medium / large-v3-turbo
+        "language": "",           # мова запису ("" — визначити самостійно)
     },
     "raindrop": {
         "export_root": "Backlog digest",   # коренева колекція для експорту конспектів
@@ -51,7 +56,7 @@ DEFAULTS: dict[str, Any] = {
 }
 
 THINKING_MODES = ("fast", "deep", "auto")
-NO_SUBTITLES_MODES = ("gemini", "skip")
+NO_SUBTITLES_MODES = ("gemini", "whisper", "skip")
 
 _LANG_CODE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 
@@ -127,6 +132,9 @@ def validate(cfg: dict[str, Any]) -> None:
         yt["delay_max"] = yt["delay_min"]
     if yt["no_subtitles"] not in NO_SUBTITLES_MODES:
         raise ConfigError("config.err_no_subtitles", value=yt["no_subtitles"], allowed=", ".join(NO_SUBTITLES_MODES))
+    w = cfg["whisper"]
+    if not isinstance(w["model"], str) or not w["model"].strip():
+        raise ConfigError("config.err_whisper_model", value=w["model"])
     v = yt["part_minutes"]
     if not isinstance(v, int) or isinstance(v, bool) or v < 1:
         raise ConfigError("config.err_positive_int", name="youtube.part_minutes", value=v)

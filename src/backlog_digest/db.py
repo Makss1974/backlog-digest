@@ -358,6 +358,8 @@ def mark_error(conn: sqlite3.Connection, item_id: int, error: str) -> str:
 
 
 NO_SUBTITLES = "no subtitles"
+NO_WHISPER = "speech recognition is not installed"
+RECOGNIZED = 2   # transcripts.generated: 0 — ручні субтитри, 1 — автоматичні, 2 — розпізнане мовлення
 
 
 def requeue_no_subtitles(conn: sqlite3.Connection) -> int:
@@ -366,6 +368,24 @@ def requeue_no_subtitles(conn: sqlite3.Connection) -> int:
     n = conn.execute("UPDATE items SET status=?, error=NULL WHERE kind='video' AND status=? AND error=? "
                      "AND key IN (SELECT key FROM transcripts WHERE text IS NULL)",
                      (NEW, NO_TEXT, NO_SUBTITLES)).rowcount
+    conn.commit()
+    return n
+
+
+def reset_no_subtitles(conn: sqlite3.Connection) -> int:
+    """Для розпізнавання мовлення: відео без субтитрів — знову в чергу на збір тексту (звуку)."""
+    n = conn.execute("UPDATE items SET status=?, error=NULL WHERE kind='video' AND status=? AND error=?",
+                     (NEW, NO_TEXT, NO_SUBTITLES)).rowcount
+    conn.execute("DELETE FROM transcripts WHERE text IS NULL AND key IN "
+                 "(SELECT key FROM items WHERE kind='video' AND status IN (?, ?))", QUEUED)
+    conn.commit()
+    return n
+
+
+def requeue_no_whisper(conn: sqlite3.Connection) -> int:
+    """Аудіо й відео з папок, що чекали на розпізнавання мовлення, — знову в чергу."""
+    n = conn.execute("UPDATE items SET status=?, error=NULL WHERE kind='media' AND status=? AND error=?",
+                     (NEW, NO_TEXT, NO_WHISPER)).rowcount
     conn.commit()
     return n
 
@@ -401,7 +421,7 @@ def note_path_taken(conn: sqlite3.Connection, note_path: str, item_id: int) -> b
 # ---------------------------------------------------------------- тексти
 
 def save_transcript(conn: sqlite3.Connection, key: str, text: str | None, language: str | None = None,
-                    generated: bool = False) -> None:
+                    generated: bool | int = False) -> None:
     """Зберігає зібраний текст. text=None — тексту немає (теж запам'ятовуємо, щоб не питати знову)."""
     conn.execute("INSERT OR REPLACE INTO transcripts (key, language, generated, text, fetched_at) "
                  "VALUES (?, ?, ?, ?, ?)", (key, language, int(generated), text, now()))

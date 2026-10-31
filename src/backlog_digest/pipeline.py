@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, web, youtube
+from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, web, whisper, youtube
 from .i18n import t
 from .llm import Chain, LLMError, LLMResult, QuotaExhausted, short
 from .paths import Paths, get_paths
@@ -75,7 +75,8 @@ def _sync_folder(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> 
     total: dict[str, int] = {}
     for pos, entry in enumerate(folders.scan(root)):
         total[entry.list_name] = total.get(entry.list_name, 0) + 1
-        if db.upsert_item(conn, source["id"], entry.key, entry.list_name, kind="text", title=entry.title,
+        kind = "media" if readers.is_media(entry.path) else "text"   # аудіо й відео — через Whisper
+        if db.upsert_item(conn, source["id"], entry.key, entry.list_name, kind=kind, title=entry.title,
                           author=entry.format, path=str(entry.path), position=pos):
             added[entry.list_name] = added.get(entry.list_name, 0) + 1
     for name, n in total.items():
@@ -207,6 +208,7 @@ class Processor:
         self._fetched_before = False
         self._fetching = self._summarizing = True
         self._watching = True   # Gemini ще не вичерпав ліміт на перегляд відео
+        self._mode: str | None = None   # що робити з відео без субтитрів (див. _no_subtitles_mode)
         self._fetch_left = 0
         self._touched: set[tuple[int, str]] = set()   # списки з новими нотатками — оновити їхні індекси
 
@@ -291,10 +293,16 @@ class Processor:
                 return stats
             self._fetching = False
             stage = SUMMARIZE
-        if self._summarizing and self._watch_enabled():
+        mode = self._no_subtitles_mode()
+        if self._summarizing and mode == "gemini":
             n = db.requeue_no_subtitles(self.conn)
             if n:
                 self.log(t("process.requeued_watch", n=n))
+        n = db.reset_no_subtitles(self.conn) if self._fetching and mode == "whisper" else 0
+        if self._summarizing and whisper.installed():
+            n += db.requeue_no_whisper(self.conn)
+        if n:
+            self.log(t("process.requeued_whisper", n=n))
         rows = db.pending(self.conn, min(limit, self._fetch_left) if stage == FETCH else limit, source_id,
                           list_name, newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
                           language=self.language)
@@ -311,6 +319,9 @@ class Processor:
             text = db.get_transcript(self.conn, item["key"])
             saved = db.get_result(self.conn, item["key"], self.language) if self._summarizing else None
             needs_fetch = item["kind"] == "video" and text is None and saved is None
+            if (item["kind"] == "video" and text is not None and text["text"] is None and saved is None
+                    and mode == "whisper"):   # звук розпізнаємо на кроці збору (потрібен YouTube)
+                continue
             if needs_fetch and not self._fetching:   # тексту ще немає, а звертатися до YouTube зараз не можна
                 if self._fetch_left <= 0 and not limit_logged:
                     self.log("\n" + t("process.daily_limit", limit=per_day))
@@ -352,6 +363,10 @@ class Processor:
             if self._summarizing:
                 (self._summarize_text if item["kind"] == "text" else self._summarize_article)(item, stats)
             return
+        if item["kind"] == "media":
+            if self._summarizing:
+                self._summarize_media(item, text, stats)
+            return
         if item["kind"] != "video":
             self._error(item, stats, t("process.unsupported", kind=item["kind"]))
             return
@@ -363,7 +378,7 @@ class Processor:
             self._no_subtitles(item, stats, known=True)
             return
         else:
-            tr = youtube.Transcript(text["text"], text["language"] or "", bool(text["generated"]))
+            tr = self._stored(text)
             self.log("  " + t("process.stored", lang=tr.language, chars=len(tr.text)))
         if self._summarizing:
             self._summarize(item, tr, stats)
@@ -380,6 +395,8 @@ class Processor:
             self._error(item, stats, t("process.transcript_error", detail=short(str(e), 200)))
             return None
         self._count_fetch()
+        if tr is None and self._no_subtitles_mode() == "whisper":
+            return self._recognize(item, stats)
         if tr is None:
             db.save_transcript(self.conn, item["key"], None)
             self._no_subtitles(item, stats)
@@ -402,14 +419,31 @@ class Processor:
         stats.no_text += 1
         self.log("  " + t("process.no_subtitles"))
 
-    # -- відео без субтитрів: Gemini дивиться саме відео
+    @staticmethod
+    def _stored(text: sqlite3.Row) -> youtube.Transcript:
+        return youtube.Transcript(text["text"], text["language"] or "", bool(text["generated"]),
+                                  recognized=text["generated"] == db.RECOGNIZED)
 
-    def _watch_enabled(self) -> bool:
-        return self.cfg["youtube"]["no_subtitles"] == "gemini" and self.chain.has_watcher()
+    # -- відео без субтитрів
+
+    def _no_subtitles_mode(self) -> str:
+        """whisper — розпізнати звук тут; gemini — Gemini дивиться відео; skip — «без тексту».
+        Whisper не встановлено — тоді хоча б Gemini, якщо є його ключ."""
+        if self._mode is None:
+            mode = self.cfg["youtube"]["no_subtitles"]
+            if mode == "whisper" and whisper.installed():
+                self._mode = "whisper"
+            elif mode in ("gemini", "whisper") and self.chain.has_watcher():
+                self._mode = "gemini"
+            else:
+                self._mode = "skip"
+        return self._mode
 
     def _no_subtitles(self, item: dict[str, Any], stats: RunStats, known: bool = False) -> None:
         """Субтитрів немає. Є Gemini — він подивиться відео (зараз або на кроці конспектів), інакше no_text."""
-        if not self._watch_enabled():
+        if self._no_subtitles_mode() == "whisper":
+            return   # розпізнаємо звук на кроці збору (_fetch)
+        if self._no_subtitles_mode() != "gemini":
             self._no_text(item, stats)
             return
         if not known:
@@ -485,10 +519,65 @@ class Processor:
             out.append(note)
         return out
 
+    # -- розпізнавання мовлення на цьому комп'ютері (Whisper)
+
+    def _recognize(self, item: dict[str, Any], stats: RunStats) -> youtube.Transcript | None:
+        """Відео без субтитрів: завантажуємо лише звук (ще один запит до YouTube) і розпізнаємо його тут."""
+        self.log("  " + t("whisper.audio"))
+        try:
+            audio = youtube.download_audio(item["key"].removeprefix("youtube:"), self.paths.cache_dir / "audio")
+        except youtube.BlockedError:
+            self._count_fetch()
+            raise
+        except youtube.AudioError as e:
+            self._count_fetch()
+            self._error(item, stats, t("whisper.audio_error", detail=short(str(e), 200)))
+            return None
+        self._count_fetch()
+        try:
+            return self._transcribe(item, audio, stats)
+        finally:
+            audio.unlink(missing_ok=True)   # звук більше не потрібен: текст уже в базі
+
+    def _transcribe(self, item: dict[str, Any], path: Path, stats: RunStats) -> youtube.Transcript | None:
+        """Розпізнає запис і одразу зберігає текст у базі (після зупинки розпізнавати знову не доведеться)."""
+        model = self.cfg["whisper"]["model"]
+        self.log("  " + t("whisper.recognizing", model=model))
+        try:
+            tr, total = whisper.transcribe(path, model, self.paths, self.log, self.cfg["whisper"]["language"])
+        except whisper.NoSpeech as e:
+            self._no_text_reason(item, stats, str(e))
+            return None
+        except whisper.WhisperError as e:
+            self._error(item, stats, str(e))
+            return None
+        db.save_transcript(self.conn, item["key"], tr.text, tr.language, db.RECOGNIZED)
+        if total and not item["duration"]:
+            item["duration"] = total
+            db.set_item_meta(self.conn, item["id"], duration=total)
+        stats.fetched += 1
+        self.log("  " + t("whisper.done", lang=tr.language, chars=len(tr.text)))
+        return tr
+
+    def _summarize_media(self, item: dict[str, Any], text: sqlite3.Row | None, stats: RunStats) -> None:
+        """Аудіо чи відео з папки: розпізнаємо мовлення (або беремо вже розпізнане) і конспектуємо."""
+        if text is not None and text["text"]:
+            tr: youtube.Transcript | None = self._stored(text)
+            self.log("  " + t("process.stored", lang=text["language"] or "", chars=len(text["text"])))
+        elif not whisper.installed():
+            db.mark_no_text(self.conn, item["id"], db.NO_WHISPER)
+            stats.no_text += 1
+            self.log("  — " + t("whisper.not_installed"))
+            return
+        else:
+            tr = self._transcribe(item, Path(item["path"] or ""), stats)
+        if tr is not None:
+            self._summarize(item, tr, stats)
+
     def _summarize(self, item: dict[str, Any], tr: youtube.Transcript, stats: RunStats) -> None:
         user = summarize.user_prompt(item["title"] or "", item["author"] or "",
                                      youtube.format_duration(item["duration"]), tr.text, tr.language,
-                                     tr.generated, self.cfg["models"]["max_chars"])
+                                     tr.generated, self.cfg["models"]["max_chars"], recognized=tr.recognized)
         if self._finish(item, summarize.system_prompt(self.language), user, self._deep(len(tr.text)),
                         tr.language, stats):
             db.delete_transcript(self.conn, item["key"])   # конспект є — субтитри більше не потрібні

@@ -164,12 +164,15 @@ def chunk_user_prompt(title: str, n: int, total: int, chunk: str) -> str:
 
 
 def user_prompt(title: str, channel: str, duration: str, transcript: str, transcript_lang: str,
-                generated: bool, max_chars: int) -> str:
+                generated: bool, max_chars: int, recognized: bool = False) -> str:
     truncated = len(transcript) > max_chars
     lines = [f"Title: {title}", f"Channel: {channel}"]
     if duration:
         lines.append(f"Duration: {duration}")
-    lines.append(f"Subtitles: {transcript_lang}, {'automatic' if generated else 'manual'}")
+    if recognized:
+        lines.append(f"Transcript: speech recognition ({transcript_lang}); names and terms may be misheard")
+    else:
+        lines.append(f"Subtitles: {transcript_lang}, {'automatic' if generated else 'manual'}")
     if truncated:
         lines.append("(The transcript was cut because of its length: the end of the video is not shown.)")
     return "\n".join(lines) + f"\n\nTRANSCRIPT:\n{transcript[:max_chars]}"

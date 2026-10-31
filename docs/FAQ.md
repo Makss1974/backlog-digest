@@ -46,6 +46,26 @@ used up, these videos wait until the next day and everything else goes on. Witho
 `[youtube] no_subtitles = "skip"`, such a video gets "no text". Videos that got "no text" earlier return to the
 queue by themselves once a Gemini key is added.
 
+**Can it recognize speech on my own computer, without Gemini limits?**
+Yes, with the optional speech recognition part (Whisper, about 100 MB):
+
+```bash
+uv tool install "backlog-digest[whisper]"
+```
+
+then set `[youtube] no_subtitles = "whisper"` in `config.toml`. For a video without subtitles the program
+downloads only its sound (one more request to YouTube, counted in the daily limit), recognizes it here and
+makes a summary with any model — the text costs as little as subtitles. The recognition model downloads once,
+on first use, into the program's data folder: `[whisper] model = "small"` (≈480 MB) by default; `base`
+(≈145 MB) is faster and rougher, `large-v3-turbo` (≈1.6 GB) is the most accurate. No graphics card is needed;
+on a usual processor `small` takes roughly a quarter of the video's length. The recognized text is kept, so a
+stop does not repeat the work.
+
+**Audio and video files in a folder?**
+With speech recognition installed, a folder source also takes MP3, M4A, WAV, OGG, OPUS, FLAC, MP4, MKV, WEBM,
+MOV and AVI: podcasts, lectures, audiobooks, voice notes. Without it these files wait with "no text" and
+return to the queue once it is installed. The files themselves are never changed.
+
 **Why is it so slow?**
 Subtitles are slow on purpose (see above). Summaries of what is already collected are fast: menu → 3 →
 "Only summaries", or `bdig summarize`. A daily schedule works best: a little every day, without you.

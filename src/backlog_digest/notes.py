@@ -142,7 +142,7 @@ def frontmatter(data: dict[str, Any]) -> str:
 
 def verdict_label(labels: dict[str, str], kind: str, verdict: str) -> str:
     """Вердикт словами: для текстів «Читати» / «Прочитати частину» замість «Дивитися» / «Переглянути частину»."""
-    if kind != "video" and verdict in ("watch", "partial"):
+    if kind not in ("video", "media") and verdict in ("watch", "partial"):
         return labels["verdict_read" if verdict == "watch" else "verdict_read_partial"]
     return labels[f"verdict_{verdict}"]
 
@@ -169,8 +169,12 @@ def render_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str],
         file = item.get("path") or ""
         file_format = item.get("author") or ""
         link = f"[{L['open_file']}](<{Path(file).as_uri()}>)" if file and Path(file).is_absolute() else ""
-        head = " · ".join(x for x in (s.get("book_title") or "", file_format, link) if x)
-        meta = {"book": s.get("book_title") or "", "file": file, "format": file_format}
+        if kind == "media":
+            head = " · ".join(x for x in (file_format, duration, link) if x)
+            meta = {"file": file, "format": file_format, "duration": duration}
+        else:
+            head = " · ".join(x for x in (s.get("book_title") or "", file_format, link) if x)
+            meta = {"book": s.get("book_title") or "", "file": file, "format": file_format}
     front = frontmatter({
         "title": item.get("title") or "",
         **meta,

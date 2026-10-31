@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, i18n, keys, llm, tools
+from . import __version__, config, db, i18n, keys, llm, tools, whisper
 from .i18n import t
 from .paths import Paths
 
@@ -49,6 +49,7 @@ def run_checks(paths: Paths, *, network: bool = True) -> list[Check]:
     if network:
         checks.append(check_network())
     checks += check_tools()
+    checks.append(check_whisper(cfg, paths))
     checks.append(check_disk(paths))
     return checks
 
@@ -168,6 +169,18 @@ def check_tools() -> list[Check]:
         else:
             out.append(Check(INFO, title, t(f"doctor.tool_{tool.id}_missing")))
     return out
+
+
+def check_whisper(cfg: dict[str, Any] | None, paths: Paths) -> Check:
+    """Розпізнавання мовлення — необов'язкове: його відсутність не помилка."""
+    title = t("doctor.whisper")
+    if not whisper.installed():
+        return Check(INFO, title, t("doctor.whisper_missing"))
+    model = (cfg or {}).get("whisper", {}).get("model") or whisper.DEFAULT_MODEL
+    if whisper.model_ready(model, paths):
+        return Check(OK, title, t("doctor.whisper_ready", model=model))
+    return Check(INFO, title, t("doctor.whisper_no_model", model=model,
+                                size=whisper.MODEL_SIZES_MB.get(model, "?")))
 
 
 def check_disk(paths: Paths) -> Check:

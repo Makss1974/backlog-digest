@@ -42,8 +42,16 @@ def file_ext(path: Path) -> str:
     return ".fb2.zip" if name.endswith(".fb2.zip") else path.suffix.lower()
 
 
+MEDIA_EXT = (".mp3", ".m4a", ".aac", ".wav", ".ogg", ".oga", ".opus", ".flac", ".wma",
+             ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi")   # звук розпізнає Whisper (whisper.py)
+
+
 def is_supported(path: Path) -> bool:
-    return file_ext(path) in TEXT_EXT
+    return file_ext(path) in TEXT_EXT or file_ext(path) in MEDIA_EXT
+
+
+def is_media(path: Path) -> bool:
+    return file_ext(path) in MEDIA_EXT
 
 
 def title_of(path: Path) -> str:

@@ -11,6 +11,7 @@ import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -23,6 +24,10 @@ class ListError(Exception):
 
 class BlockedError(Exception):
     """YouTube обмежує запити з нашої IP — треба зупинитися й почекати."""
+
+
+class AudioError(Exception):
+    """Не вдалося завантажити звук відео (приватне, видалене, з віковим обмеженням)."""
 
 
 @dataclass
@@ -44,6 +49,7 @@ class Transcript:
     text: str                        # текст із мітками часу [мм:сс] приблизно щохвилини
     language: str
     generated: bool
+    recognized: bool = False         # не субтитри, а розпізнане мовлення (Whisper)
 
 
 def video_id(url: str) -> str | None:
@@ -90,14 +96,15 @@ def list_url(url: str, cookies_file: str | None = None) -> Listing:
     return _flat_playlist(normalize_list_url(url), cookies_file)
 
 
+class _Quiet:
+    def debug(self, msg: str) -> None: ...
+    def info(self, msg: str) -> None: ...
+    def warning(self, msg: str) -> None: ...
+    def error(self, msg: str) -> None: ...
+
+
 def _flat_playlist(url: str, cookies_file: str | None) -> Listing:
     import yt_dlp
-
-    class _Quiet:
-        def debug(self, msg: str) -> None: ...
-        def info(self, msg: str) -> None: ...
-        def warning(self, msg: str) -> None: ...
-        def error(self, msg: str) -> None: ...
 
     opts: dict[str, Any] = {"extract_flat": "in_playlist", "skip_download": True, "quiet": True,
                             "no_warnings": True, "logger": _Quiet()}
@@ -149,6 +156,33 @@ def video_duration(vid: str) -> int | None:
         return None
     m = re.search(r'"lengthSeconds":"(\d+)"', page)
     return int(m.group(1)) if m else None
+
+
+_BLOCK_HINTS = ("429", "Too Many Requests", "not a bot", "Sign in to confirm")
+
+
+def download_audio(vid: str, folder: Path, cookies_file: str | None = None) -> Path:
+    """Лише звукова доріжка відео (без ffmpeg: як є, m4a чи webm) — для розпізнавання мовлення."""
+    import yt_dlp
+
+    folder.mkdir(parents=True, exist_ok=True)
+    opts: dict[str, Any] = {"format": "bestaudio[ext=m4a]/bestaudio", "outtmpl": str(folder / f"{vid}.%(ext)s"),
+                            "noplaylist": True, "quiet": True, "no_warnings": True, "noprogress": True,
+                            "logger": _Quiet()}
+    if cookies_file:
+        opts["cookiefile"] = cookies_file
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(WATCH_URL.format(vid), download=True)
+            path = Path(ydl.prepare_filename(info))
+    except Exception as e:  # yt-dlp кидає власні типи помилок
+        msg = _first_line(str(e))
+        if any(h in str(e) for h in _BLOCK_HINTS):
+            raise BlockedError(msg) from e
+        raise AudioError(msg) from e
+    if not path.exists():
+        raise AudioError(f"no audio file: {path.name}")
+    return path
 
 
 def _first_line(s: str) -> str:

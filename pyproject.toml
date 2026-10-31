@@ -48,6 +48,7 @@ Issues = "https://github.com/Makss1974/backlog-digest/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+whisper = ["faster-whisper>=1.1"]   # розпізнавання мовлення на цьому комп'ютері (≈100 МБ)
 
 [project.scripts]
 backlog-digest = "backlog_digest.cli:main"
@@ -83,6 +84,11 @@ check_untyped_defs = true
 [[tool.mypy.overrides]]
 module = ["yt_dlp", "yt_dlp.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]   # необов'язкова: однаково — встановлена вона чи ні
+module = ["faster_whisper", "faster_whisper.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_library.py" = ["F811"]

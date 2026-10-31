@@ -5,7 +5,7 @@ import json
 import pytest
 
 import samples
-from backlog_digest import config, db, llm, pipeline, youtube
+from backlog_digest import config, db, llm, pipeline, whisper, youtube
 
 GOOD = json.dumps({
     "about": "What it is about.", "key_points": ["k1", "k2"], "useful": ["u1"], "recommendations_count": 2,
@@ -511,3 +511,174 @@ def test_unknown_duration_is_looked_up_before_watching(env, monkeypatch):
     env.make(chain).run(limit=1)
     assert [w[1:3] for w in chain.watched] == [(0, 1200), (1200, 2500)]
     assert item(env, "vid00000001")["duration"] == 2500
+
+
+# ---------------------------------------------------------------- розпізнавання мовлення (Whisper)
+
+class FakeWhisper:
+    """Замість whisper.transcribe і youtube.download_audio: без моделі й без мережі."""
+
+    def __init__(self, monkeypatch, *, installed=True, answers=None):
+        self.answers = list(answers or [])
+        self.calls = []
+        self.downloads = []
+        monkeypatch.setattr(whisper, "installed", lambda: installed)
+        monkeypatch.setattr(whisper, "transcribe", self.transcribe)
+        monkeypatch.setattr(youtube, "download_audio", self.download)
+
+    def download(self, vid, folder, cookies_file=None):
+        self.downloads.append(vid)
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{vid}.m4a"
+        path.write_bytes(b"audio")
+        return path
+
+    def transcribe(self, path, model, paths, log, language=""):
+        self.calls.append((path.name, model, language))
+        reply = self.answers.pop(0) if self.answers else "[00:00] recognized speech of " + path.stem
+        if isinstance(reply, Exception):
+            raise reply
+        return youtube.Transcript(reply, "en", True, recognized=True), 1500
+
+
+def test_whisper_recognizes_youtube_video_without_subtitles(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch)
+    chain = FakeChain(watcher=True)
+    stats = env.make(chain).run(limit=10)
+    assert (stats.done, stats.no_text, stats.errors) == (3, 0, 0)
+    assert fw.downloads == ["vid00000001"] and fw.calls == [("vid00000001.m4a", "small", "")]
+    assert chain.watched == []                                   # Gemini не дивився
+    prompt = next(c for c in chain.calls if "recognized speech" in c)
+    assert "speech recognition (en)" in prompt and "Subtitles:" not in prompt
+    assert not list((env.make().paths.cache_dir / "audio").glob("*"))   # звук видалено
+    assert db.fetched_today(env.conn) == 4                       # 3 запити субтитрів + 1 завантаження звуку
+    assert any("speech recognized" in line for line in env.logs)
+
+
+def test_whisper_text_survives_a_stop_and_is_not_recognized_again(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch)
+    env.make().run(limit=10, stage=pipeline.FETCH)
+    row = db.get_transcript(env.conn, "youtube:vid00000001")
+    assert row["generated"] == db.RECOGNIZED and "recognized speech" in row["text"]
+    chain = FakeChain()
+    assert env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE).done == 3
+    assert len(fw.calls) == 1 and any("speech recognition (en)" in c for c in chain.calls)
+
+
+def test_whisper_mode_without_whisper_falls_back_to_gemini(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch, installed=False)
+    chain = FakeChain(watcher=True)
+    assert env.make(chain).run(limit=10).done == 3
+    assert fw.calls == [] and len(chain.watched) == 1
+
+
+def test_whisper_brings_back_videos_marked_without_subtitles(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.make(FakeChain()).run(limit=10)
+    assert item(env, "vid00000001")["status"] == db.NO_TEXT
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch)
+    env.logs.clear()
+    assert env.make(FakeChain()).run(limit=10).done == 1
+    assert fw.downloads == ["vid00000001"] and item(env, "vid00000001")["status"] == db.DONE
+    assert any("speech recognition: 1" in line for line in env.logs)
+
+
+def test_whisper_skips_known_no_subtitle_video_in_summaries_step(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.make(FakeChain()).run(limit=10, stage=pipeline.FETCH)       # skip-режим: записано «субтитрів немає»
+    env.conn.execute("UPDATE items SET status='new', error=NULL")
+    env.conn.commit()
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch)
+    env.logs.clear()
+    stats = env.make(FakeChain()).run(limit=10, stage=pipeline.SUMMARIZE)
+    assert stats.done == 2 and fw.calls == [] and item(env, "vid00000001")["status"] == db.NEW
+    assert not any("Video 1" in line for line in env.logs)          # без порожнього рядка про це відео
+
+
+def test_whisper_audio_errors(env, monkeypatch):
+    sync(env)
+    env.transcripts["vid00000001"] = None
+    env.transcripts["vid00000002"] = None
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    fw = FakeWhisper(monkeypatch, answers=[whisper.NoSpeech("no speech in the recording")])
+
+    def download(vid, folder, cookies_file=None):
+        if vid == "vid00000002":
+            raise youtube.AudioError("Private video")
+        return fw.download(vid, folder)
+
+    monkeypatch.setattr(youtube, "download_audio", download)
+    stats = env.make(FakeChain()).run(limit=10)
+    assert (stats.done, stats.no_text, stats.errors) == (1, 1, 1)
+    assert item(env, "vid00000001")["error"] == "no speech in the recording"
+    assert "Private video" in item(env, "vid00000002")["error"]
+
+
+def test_whisper_blocked_audio_download_stops_youtube(env, monkeypatch):
+    sync(env)
+    for vid in ("vid00000001", "vid00000002"):
+        env.transcripts[vid] = None
+    env.cfg["youtube"]["no_subtitles"] = "whisper"
+    FakeWhisper(monkeypatch)
+
+    def blocked(vid, folder, cookies_file=None):
+        raise youtube.BlockedError("Sign in to confirm you're not a bot")
+
+    monkeypatch.setattr(youtube, "download_audio", blocked)
+    stats = env.make(FakeChain()).run(limit=10)
+    assert stats.stopped == "blocked" and item(env, "vid00000001")["status"] == db.NEW
+
+
+@pytest.fixture
+def media(env, tmp_path):
+    root = tmp_path / "Media"
+    (root / "Podcasts").mkdir(parents=True)
+    (root / "Podcasts" / "Episode 1.mp3").write_bytes(b"mp3 bytes")
+    (root / "Lecture.mp4").write_bytes(b"mp4 bytes")
+    sid = pipeline.add_folder_source(env.conn, "Media", str(root), "Media")
+    pipeline.sync_source(env.conn, db.get_source(env.conn, sid), env.logs.append)
+    return root
+
+
+def test_media_files_from_folder_are_recognized_and_summarized(env, media, monkeypatch):
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, langs: pytest.fail("no YouTube for files"))
+    fw = FakeWhisper(monkeypatch)
+    kinds = {r["title"]: r["kind"] for r in env.conn.execute("SELECT * FROM items WHERE source_id<>?", (env.sid,))}
+    assert kinds == {"Episode 1": "media", "Lecture": "media"}
+    chain = FakeChain([GOOD.replace('"summary_enough"', '"watch"')])
+    stats = env.make(chain).run(limit=10, stage=pipeline.SUMMARIZE, source_id=2)
+    assert stats.done == 2 and sorted(c[0] for c in fw.calls) == ["Episode 1.mp3", "Lecture.mp4"]
+    note = (env.root / "Media" / "Lecture.md").read_text(encoding="utf-8")
+    assert "Watch" in note and "25:00" in note and "Open the file" in note
+    assert "Format: MP4" not in chain.calls[0] and "speech recognition" in chain.calls[0]
+    assert (media / "Lecture.mp4").exists()                      # файли користувача не чіпаємо
+
+
+def test_media_waits_for_whisper_and_returns_when_installed(env, media, monkeypatch):
+    FakeWhisper(monkeypatch, installed=False)
+    stats = env.make(FakeChain()).run(limit=10, stage=pipeline.SUMMARIZE, source_id=2)
+    assert (stats.done, stats.no_text) == (0, 2)
+    assert {r["error"] for r in env.conn.execute("SELECT error FROM items WHERE kind='media'")} == {db.NO_WHISPER}
+    FakeWhisper(monkeypatch, installed=True)
+    assert env.make(FakeChain()).run(limit=10, stage=pipeline.SUMMARIZE, source_id=2).done == 2
+
+
+def test_media_recognition_error_is_retried(env, media, monkeypatch):
+    fw = FakeWhisper(monkeypatch, answers=[whisper.WhisperError("speech recognition failed: bad file")])
+    stats = env.make(FakeChain()).run(limit=1, stage=pipeline.SUMMARIZE, source_id=2)
+    assert stats.errors == 1
+    assert env.make(FakeChain()).run(limit=10, stage=pipeline.SUMMARIZE, source_id=2).done == 2
+    assert len(fw.calls) == 3
