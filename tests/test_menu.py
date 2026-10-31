@@ -245,3 +245,34 @@ def test_add_bookmarks_with_folder_choice(make_menu, monkeypatch, tmp_path):
     assert source["name"] == "Science"
     items = {tuple(r) for r in m.conn.execute("SELECT url, list_name FROM items")}
     assert items == {("https://e.com/p", "Science/Physics"), ("https://e.com/s", "Science")}
+
+
+def test_private_youtube_list_asks_for_cookies(make_menu, monkeypatch, capsys, tmp_path):
+    from backlog_digest import youtube
+
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+
+    def list_url(url, cookies_file=None):
+        if not cookies_file:
+            raise youtube.ListError("[youtube:tab] WL: YouTube said: The playlist does not exist.")
+        return youtube.Listing("Watch later", [youtube.Entry("aaaaaaaaaaa", "Video A", "Chan", 60)])
+
+    monkeypatch.setattr(youtube, "list_url", list_url)
+    # 2 — джерела, 1 — YouTube, WL, кінець, назва, тека, неіснуючий файл, справжній, 0 — назад
+    feed(monkeypatch, ["2", "1", "WL", "", "", "", str(tmp_path / "nope.txt"), f'"{cookies}"', "0", "", "q"])
+    m = make_menu()
+    m.run()
+    [s] = db.list_sources(m.conn)
+    assert s["settings"]["cookies_file"] == str(cookies.resolve())
+    assert db.status_counts(m.conn)[db.NEW] == 1
+    out = capsys.readouterr().out
+    assert "🔒" in out and "Unlisted" in out and "File not found" in out and "1 videos" in out
+
+
+def test_needs_login():
+    from backlog_digest import youtube
+
+    assert youtube.needs_login("", "WL") and youtube.needs_login("", "https://www.youtube.com/playlist?list=WL")
+    assert youtube.needs_login("YouTube said: The playlist does not exist.")
+    assert not youtube.needs_login("HTTP Error 503: Service Unavailable")

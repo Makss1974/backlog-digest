@@ -100,7 +100,8 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
             sid = pipeline.add_web_source(conn, name, urls, files, args.folder or name, args.only)
             print(t("sources.added_web", name=name))
         else:
-            sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name)
+            cookies = str(Path(args.cookies).expanduser().resolve()) if args.cookies else ""
+            sid = pipeline.add_youtube_source(conn, name, args.urls, args.folder or name, cookies)
             print(t("sources.added", name=name))
         source = db.get_source(conn, sid)
         if source and not args.no_sync:
@@ -248,6 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--folder", help=t("cli.help_folder"))
     p.add_argument("--no-sync", action="store_true", help=t("cli.help_no_sync"))
     p.add_argument("--only", action="append", default=[], metavar="FOLDER", help=t("cli.help_only"))
+    p.add_argument("--cookies", metavar="FILE", help=t("cli.help_cookies"))
     sub.add_parser("sync", help=t("cli.help_sync"))
     p = sub.add_parser("export", help=t("cli.help_export"))
     p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))

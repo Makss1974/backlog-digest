@@ -37,8 +37,13 @@ MAX_LISTS_SHOWN = 30
 
 # ---------------------------------------------------------------- джерела
 
-def add_youtube_source(conn: sqlite3.Connection, name: str, urls: list[str], folder: str = "") -> int:
-    return db.add_source(conn, YOUTUBE, name, {"urls": urls}, folder or name)
+def add_youtube_source(conn: sqlite3.Connection, name: str, urls: list[str], folder: str = "",
+                       cookies_file: str = "") -> int:
+    """cookies_file — для закритих списків («Дивитися пізніше», приватні плейлисти)."""
+    settings: dict[str, Any] = {"urls": urls}
+    if cookies_file:
+        settings["cookies_file"] = cookies_file
+    return db.add_source(conn, YOUTUBE, name, settings, folder or name)
 
 
 def add_folder_source(conn: sqlite3.Connection, name: str, path: str, folder: str = "") -> int:

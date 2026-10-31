@@ -3,7 +3,7 @@
 **Work through your "saved for later" pile.** Thousands of saved videos, articles and books →
 a library you can read in an evening.
 
-[Українською](https://github.com/Makss1974/backlog-digest/blob/main/README.uk.md) · [FAQ](https://github.com/Makss1974/backlog-digest/blob/main/docs/FAQ.md) · [Example summary](https://github.com/Makss1974/backlog-digest/blob/main/docs/examples/video-summary.en.md) ·
+[Українською](https://github.com/Makss1974/backlog-digest/blob/main/README.uk.md) · **[Getting started](https://github.com/Makss1974/backlog-digest/blob/main/docs/QUICKSTART.md)** · [FAQ](https://github.com/Makss1974/backlog-digest/blob/main/docs/FAQ.md) · [Example summary](https://github.com/Makss1974/backlog-digest/blob/main/docs/examples/video-summary.en.md) ·
 License: [MIT](https://github.com/Makss1974/backlog-digest/blob/main/LICENSE)
 
 For every item backlog-digest writes a summary with a **critical score** and an honest **"worth it or not"**
@@ -66,6 +66,8 @@ Long books are read in parts and continue after a stop. The same video or book i
 once. YouTube links inside bookmarks become videos, PDF links become books.
 
 ## Install
+
+> New to this? The step-by-step [getting started guide](https://github.com/Makss1974/backlog-digest/blob/main/docs/QUICKSTART.md) covers installing, the model key and giving access to your playlists, including private ones and Watch Later.
 
 You only need [uv](https://docs.astral.sh/uv/) — a small tool that installs the right Python and
 backlog-digest apart from the rest of your system. No administrator rights.

@@ -88,6 +88,18 @@ def normalize_list_url(url: str) -> str:
     return s
 
 
+# Так yt-dlp відповідає на закритий список без входу (і на неіснуючий — YouTube їх не розрізняє)
+_LOGIN_HINTS = ("does not exist", "private", "sign in", "log in", "login", "cookies", "members-only",
+                "requires authentication")
+
+
+def needs_login(error: str, url: str = "") -> bool:
+    """Список, можливо, закритий: «Дивитися пізніше», приватний плейлист — потрібен вхід (файл cookies)."""
+    if url and "list=WL" in normalize_list_url(url):
+        return True
+    return any(h in error.lower() for h in _LOGIN_HINTS)
+
+
 def list_url(url: str, cookies_file: str | None = None) -> Listing:
     """Список відео за посиланням: плейлист, канал або окреме відео."""
     vid = video_id(url)

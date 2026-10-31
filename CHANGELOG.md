@@ -9,6 +9,9 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   YouTube links become videos, other links become articles, posts of 800+ characters become texts, documents,
   audio and voice messages are taken when the export includes files. Each chat is a list; `bdig add <export
   folder> --only <chat>` or menu → Sources → 5.
+- **Private YouTube lists** (Watch Later, private playlists): the program notices a list it cannot see and
+  explains two ways — make the playlist unlisted, or give a `cookies.txt` file (checked right away);
+  `bdig add ... --cookies FILE`.
 
 ### Library
 - **Ask the library** (menu → 9, `bdig ask "question"`): an answer from all finished summaries with numbered
@@ -22,6 +25,10 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - A neater menu: a status panel and the menu in frames, the menu in columns, sources as a table,
   section headers. No extra packages. Colors can be switched off: Settings → 9, `[general] colors = false`
   or the `NO_COLOR` variable.
+
+### Documentation
+- A step-by-step [getting started guide](docs/QUICKSTART.md) ([українською](docs/QUICKSTART.uk.md)): install,
+  the model key, giving access to your playlists, bookmarks, Raindrop and Telegram.
 
 ### Fixes
 - YouTube links without a title (from posts or plain link lists) get their title and channel before the summary,

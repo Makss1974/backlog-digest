@@ -29,6 +29,7 @@ from . import (
     ui,
     web,
     wizard,
+    youtube,
 )
 from .i18n import t
 from .paths import Paths
@@ -399,12 +400,46 @@ class Menu:
             print(t("sources.name_taken", name=name))
             return
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
-        sid = pipeline.add_youtube_source(self.conn, name, urls, folder)
+        cookies = self.check_youtube_access(urls)
+        sid = pipeline.add_youtube_source(self.conn, name, urls, folder, cookies)
         print(t("sources.added", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)
             print(t("sources.synced", new=new))
+
+    def check_youtube_access(self, urls: list[str]) -> str:
+        """Чи видно списки без входу. Закритий («Дивитися пізніше», приватний) — пояснення й файл cookies.txt.
+        Повертає шлях до cookies.txt або ""."""
+        closed = []
+        for url in urls:
+            if youtube.video_id(url):
+                continue
+            try:
+                youtube.list_url(url)
+            except youtube.ListError as e:
+                if not youtube.needs_login(str(e), url):
+                    print(t("sync.list_error", url=url, detail=str(e)))
+                    continue
+                closed.append(url)
+        if not closed:
+            return ""
+        for url in closed:
+            print(t("sources.private_list", url=url))
+        print(t("sources.cookies_help"))
+        while path := ask(t("sources.cookies_path") + " ").strip('"'):
+            file = Path(path).expanduser()
+            if not file.is_file():
+                print(t("sources.cookies_missing", path=str(file)))
+                continue
+            try:
+                n = sum(len(youtube.list_url(url, str(file)).entries) for url in closed)
+            except youtube.ListError as e:
+                print(t("sources.cookies_failed", detail=str(e)))
+                continue
+            print(t("sources.cookies_ok", n=n))
+            return str(file.resolve())
+        return ""
 
     def add_folder(self) -> None:
         print(t("sources.folder_help"))
