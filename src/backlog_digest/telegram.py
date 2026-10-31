@@ -89,7 +89,12 @@ def _load(path: Path) -> tuple[Path, list[dict[str, Any]]]:
         dirs = _html_chat_dirs(path)
         if not dirs:
             raise ExportError(str(path))
-        return path, [_html_chat(d, path) for d in dirs]
+        chats = [_html_chat(d, path) for d in dirs]
+        saved = _html_saved_folder(path)
+        for chat in chats:
+            if chat["id"] == saved:
+                chat["type"] = "saved_messages"
+        return path, chats
     try:
         data = json.loads(result.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as e:
@@ -109,6 +114,17 @@ def _load(path: Path) -> tuple[Path, list[dict[str, Any]]]:
 def _number(name: str) -> int:
     m = re.search(r"(\d+)", name)
     return int(m.group(1)) if m else 0
+
+
+def _html_saved_folder(root: Path) -> str:
+    """Тека «Збереженого»: на сторінці чату в заголовку ім'я власника, а в списку чатів — «Saved messages»."""
+    try:
+        index = (root / "lists" / "chats.html").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    m = re.search(r'href="[./]*chats/(chat_\d+)/messages\.html[^"]*"(?:(?!</a>).)*?'
+                  r'class="name bold">\s*Saved messages\s*<', index, re.S)
+    return m.group(1) if m else ""
 
 
 def _html_chat(folder: Path, root: Path) -> dict[str, Any]:

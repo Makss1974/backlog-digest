@@ -180,6 +180,18 @@ def write_html_export(root):
     return root
 
 
+def test_html_saved_messages_from_index(tmp_path):
+    root = write_html_export(tmp_path / "DataExport")
+    (root / "lists").mkdir()
+    (root / "lists" / "chats.html").write_text(
+        '<a class="entry block_link" href="../chats/chat_001/messages.html"><div class="name bold">Other'
+        '</div></a><a class="entry block_link" href="../chats/chat_002/messages.html#allow_back"><div class="body">'
+        '<div class="name bold">\nSaved messages \n</div></div></a>', encoding="utf-8")
+    ex = telegram.read_export(root, saved_name="Збережене")
+    assert [c.name for c in ex.chats] == ["Збережене"]
+    assert {lk.list_name for lk in ex.links} == {"Збережене"}
+
+
 def test_read_html_export(tmp_path):
     root = write_html_export(tmp_path / "DataExport")
     assert telegram.is_export(root) and telegram.is_export(root / "chats" / "chat_002")
