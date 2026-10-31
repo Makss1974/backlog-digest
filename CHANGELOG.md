@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.2.0 — Telegram, ask the library, MCP server, a new menu
 
 ### Sources
 - **Telegram** without logging in: an export from Telegram Desktop (HTML or JSON) — Saved Messages, channels, groups.
