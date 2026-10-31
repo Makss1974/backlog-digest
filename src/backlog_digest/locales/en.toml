@@ -580,6 +580,8 @@ help_autostart = "run the schedule by the system scheduler: on / off / status"
 help_setup = "setup wizard: language, folder, key, source, schedule"
 help_ask = "ask the library: an answer from all summaries, with links"
 help_question = "the question (in quotes)"
+help_mcp = "MCP server: the library for Claude, Cursor and other assistants (the assistant starts it)"
+help_mcp_config = "show what to put into the assistant's settings"
 
 [questions]
 prompt = "Your question (Enter — back):"

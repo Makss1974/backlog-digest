@@ -14,6 +14,9 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - **Ask the library** (menu → 9, `bdig ask "question"`): an answer from all finished summaries with numbered
   links to the notes, grouped repeats, disagreements, how well it is grounded and what the library lacks.
   Saved as a note in `_Questions`.
+- **MCP server** (`bdig mcp`): Claude, Cursor and other assistants can search the summaries, read
+  any of them in full, list the sources and ask the library. No extra packages; read-only.
+  `bdig mcp --config` prints the settings block for the assistant.
 
 ### Fixes
 - YouTube links without a title (from posts or plain link lists) get their title and channel before the summary,

@@ -122,6 +122,7 @@ bdig sync                     # find new items in all sources
 bdig process --limit 20       # collect texts and write summaries
 bdig export                   # send summaries to Raindrop
 bdig ask "Why is deep sleep important?"   # an answer from your summaries, with links
+bdig mcp --config             # the library for Claude, Cursor (MCP)
 bdig run-jobs --force         # run the scheduled jobs now
 ```
 
@@ -130,6 +131,12 @@ writes an answer citing them as [1], [2]… — each number links to the note. I
 repeat each other, lists disagreements and doubtful claims, says how well the answer is grounded and what
 the library does not cover. The answer is saved as a note in `_Questions` in your vault. Only short
 descriptions of the summaries go to the model first, so even a big library costs a few requests.
+
+**Your library in Claude, Cursor and other assistants (MCP).** `bdig mcp` is an MCP server: the assistant can
+search your summaries, open any of them in full, see your sources and ask the library a question. Search and
+reading cost nothing; only "ask the library" uses your model keys. Claude Code:
+`claude mcp add backlog-digest -- bdig mcp`. Claude Desktop, Cursor and others: `bdig mcp --config` prints the
+block to paste into their settings (`mcpServers`). The assistant only reads; it changes nothing.
 
 **Schedule.** Menu → 6: what to do (update lists → summaries → report → Raindrop), how many, daily or weekly,
 "not before HH:MM". Autostart uses the system scheduler without administrator rights — Task Scheduler on

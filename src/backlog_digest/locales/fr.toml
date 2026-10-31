@@ -580,6 +580,8 @@ help_autostart = "lancement par le planificateur système : on / off / status"
 help_setup = "assistant : langue, dossier, clé, source, planification"
 help_ask = "interroger la bibliothèque : une réponse tirée de tous les résumés, avec liens"
 help_question = "la question (entre guillemets)"
+help_mcp = "serveur MCP : la bibliothèque pour Claude, Cursor et d'autres assistants (l'assistant le lance)"
+help_mcp_config = "afficher quoi mettre dans les réglages de l'assistant"
 
 [questions]
 prompt = "Votre question (Entrée — retour) :"

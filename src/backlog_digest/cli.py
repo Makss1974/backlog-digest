@@ -1,8 +1,10 @@
 """Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [--home ТЕКА]
-[menu | setup | doctor | add | sync | process | fetch | summarize | export | shortcut | run-jobs | autostart]."""
+[menu | setup | doctor | add | sync | process | fetch | summarize | export | ask | mcp | shortcut | run-jobs |
+autostart]."""
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -49,7 +51,9 @@ def main(argv: list[str] | None = None) -> int:
         print(t("cli.run_doctor"), file=sys.stderr)
         return 2
     if config.ensure(paths):
-        print(t("cli.config_created", path=str(paths.config_file)))
+        # у bdig mcp stdout — лише для протоколу
+        print(t("cli.config_created", path=str(paths.config_file)),
+              file=sys.stderr if args.command == "mcp" else sys.stdout)
         cfg = config.load(paths)
         if args.lang:
             cfg["general"]["ui_language"] = args.lang
@@ -118,6 +122,15 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         from . import wizard
 
         wizard.run(Menu(paths, cfg, conn))
+        return 0
+    if args.command == "mcp":
+        from . import mcp_server
+
+        if args.config:
+            home = os.environ.get(HOME_ENV)
+            print(json.dumps(mcp_server.client_config(Path(home) if home else None), ensure_ascii=False, indent=2))
+            return 0
+        mcp_server.serve(mcp_server.Server(conn, cfg, paths))
         return 0
     if args.command == "ask":
         from . import questions
@@ -240,6 +253,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))
     sub.add_parser("shortcut", help=t("cli.help_shortcut"))
     sub.add_parser("setup", help=t("cli.help_setup"))
+    p = sub.add_parser("mcp", help=t("cli.help_mcp"))
+    p.add_argument("--config", action="store_true", help=t("cli.help_mcp_config"))
     p = sub.add_parser("ask", help=t("cli.help_ask"))
     p.add_argument("question", nargs="+", help=t("cli.help_question"))
     p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))

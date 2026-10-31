@@ -580,6 +580,8 @@ help_autostart = "ejecución por el programador del sistema: on / off / status"
 help_setup = "asistente: idioma, carpeta, clave, fuente, programación"
 help_ask = "preguntar a la biblioteca: una respuesta de todos los resúmenes, con enlaces"
 help_question = "la pregunta (entre comillas)"
+help_mcp = "servidor MCP: la biblioteca para Claude, Cursor y otros asistentes (lo inicia el asistente)"
+help_mcp_config = "mostrar qué poner en la configuración del asistente"
 
 [questions]
 prompt = "Su pregunta (Intro — volver):"
