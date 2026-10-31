@@ -26,6 +26,7 @@ through thousands of items a little every day, and never loses progress.
    6. Schedule
    7. Health check (doctor)
    8. Settings
+   9. Ask the library
    q. Quit
 ```
 
@@ -120,8 +121,15 @@ bdig add raindrop "Read later"                                        # Raindrop
 bdig sync                     # find new items in all sources
 bdig process --limit 20       # collect texts and write summaries
 bdig export                   # send summaries to Raindrop
+bdig ask "Why is deep sleep important?"   # an answer from your summaries, with links
 bdig run-jobs --force         # run the scheduled jobs now
 ```
+
+**Ask the library.** Menu → 9 or `bdig ask "question"`: the model finds the summaries that answer it and
+writes an answer citing them as [1], [2]… — each number links to the note. It also groups sources that
+repeat each other, lists disagreements and doubtful claims, says how well the answer is grounded and what
+the library does not cover. The answer is saved as a note in `_Questions` in your vault. Only short
+descriptions of the summaries go to the model first, so even a big library costs a few requests.
 
 **Schedule.** Menu → 6: what to do (update lists → summaries → report → Raindrop), how many, daily or weekly,
 "not before HH:MM". Autostart uses the system scheduler without administrator rights — Task Scheduler on

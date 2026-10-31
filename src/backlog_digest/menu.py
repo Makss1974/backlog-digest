@@ -54,6 +54,7 @@ class Menu:
             ("6", t("menu.schedule"), self.schedule_menu),
             ("7", t("menu.doctor"), self.run_doctor),
             ("8", t("menu.settings"), self.settings),
+            ("9", t("menu.questions"), self.ask_library),
         ]
 
     def run(self, offer_wizard: bool = False) -> None:
@@ -172,6 +173,16 @@ class Menu:
         from . import sorting_menu
 
         sorting_menu.run(self.conn, self.cfg, self.paths)
+
+    def ask_library(self) -> None:
+        """Питання до бібліотеки: відповідь з готових конспектів — у терміналі й нотаткою в сховищі."""
+        from . import questions
+
+        print(t("questions.hint"))
+        while question := ask(t("questions.prompt") + " "):
+            print()
+            questions.run(self.conn, self.cfg, self.paths, question)
+            print()
 
     def export_raindrop(self) -> None:
         """Конспекти — у Raindrop: вибрані списки, коренева колекція, перевірка, згода, надсилання."""

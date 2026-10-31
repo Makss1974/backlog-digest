@@ -119,6 +119,10 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
 
         wizard.run(Menu(paths, cfg, conn))
         return 0
+    if args.command == "ask":
+        from . import questions
+
+        return questions.run(conn, cfg, paths, " ".join(args.question), args.source)
     if args.command in STAGES:
         limit = args.limit or cfg["limits"]["per_run"]
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
@@ -236,6 +240,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))
     sub.add_parser("shortcut", help=t("cli.help_shortcut"))
     sub.add_parser("setup", help=t("cli.help_setup"))
+    p = sub.add_parser("ask", help=t("cli.help_ask"))
+    p.add_argument("question", nargs="+", help=t("cli.help_question"))
+    p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))
     p = sub.add_parser("run-jobs", help=t("cli.help_run_jobs"))
     p.add_argument("--force", action="store_true", help=t("cli.help_force"))
     p.add_argument("--job", type=int, action="append", default=[], metavar="ID", help=t("cli.help_job"))

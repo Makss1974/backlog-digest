@@ -10,6 +10,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   audio and voice messages are taken when the export includes files. Each chat is a list; `bdig add <export
   folder> --only <chat>` or menu → Sources → 5.
 
+### Library
+- **Ask the library** (menu → 9, `bdig ask "question"`): an answer from all finished summaries with numbered
+  links to the notes, grouped repeats, disagreements, how well it is grounded and what the library lacks.
+  Saved as a note in `_Questions`.
+
 ### Fixes
 - YouTube links without a title (from posts or plain link lists) get their title and channel before the summary,
   so the note is no longer named "_".
