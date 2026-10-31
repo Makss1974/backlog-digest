@@ -24,7 +24,9 @@ LABEL_KEYS = [
     "verdict_watch", "verdict_partial", "verdict_summary_enough", "verdict_skip",
     "verdict_read", "verdict_read_partial",
     "evidence_high", "evidence_medium", "evidence_low", "evidence_unscientific",
-    "other_topic",
+    "other_topic", "index", "best", "by_topic", "all_by_score", "similar", "similar_hint", "off_topic",
+    "unscientific", "problems", "col_title", "col_details", "stat_done", "stat_of", "stat_queued",
+    "stat_no_text", "stat_updated", "status_failed", "status_error", "status_no_text",
 ]
 
 # Символи, заборонені в іменах файлів Windows, і ті, що ламають [[посилання]] в Obsidian

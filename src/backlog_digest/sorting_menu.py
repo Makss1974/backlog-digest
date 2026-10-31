@@ -39,6 +39,16 @@ def run(conn: sqlite3.Connection, cfg: dict[str, Any], paths: Paths) -> None:
     items = db.done_items(conn, source_id, name, language)
     scheme = db.get_scheme(conn, source_id, name)
     try:
+        if not scheme or not scheme["topics"]:
+            print(f"\n  1. {t('sort.sort_list')}")
+            print(f"  2. {t('sort.report_only')}")
+            print(f"  0. {t('menu.back')}")
+            choice = ask_int(t("settings.choose"), 1, 0, 2)
+            if choice == 0:
+                return
+            if choice == 2:
+                finish(conn, proc, source_id, name, language, ask_yes, ask_report=False)
+                return
         if scheme and scheme["topics"]:
             mode = t(f"sort.mode_{scheme['mode']}")
             print("\n" + t("sort.has_scheme", mode=mode))
@@ -46,14 +56,19 @@ def run(conn: sqlite3.Connection, cfg: dict[str, Any], paths: Paths) -> None:
             unsorted = [it for it in items if not it.get("topic")]
             print(f"\n  1. {t('sort.assign_unsorted', n=len(unsorted))}")
             print(f"  2. {t('sort.new_scheme')}")
+            print(f"  3. {t('sort.report_only')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 1, 0, 2)
+            choice = ask_int(t("settings.choose"), 1, 0, 3)
             if choice == 0:
                 return
             if choice == 1:
                 if unsorted:
                     assign = library.classify(proc.chain, unsorted, scheme["topics"], scheme["criteria"], other)
                     print(t("sort.moved", n=library.apply(conn, unsorted, assign, proc.rewrite)))
+                finish(conn, proc, source_id, name, language, ask_yes)
+                return
+            if choice == 3:
+                finish(conn, proc, source_id, name, language, ask_yes, ask_report=False)
                 return
         new_scheme(conn, proc, items, source_id, name, language, other, ask, ask_int, ask_yes)
     except (LLMError, ValueError) as e:
@@ -106,6 +121,22 @@ def new_scheme(conn: sqlite3.Connection, proc: pipeline.Processor, items: list[d
     db.save_scheme(conn, source_id, list_name, mode, topics, criteria)
     print(t("sort.moved", n=library.apply(conn, items, assign, proc.rewrite)))
     print(t("sort.auto_next"))
+    finish(conn, proc, source_id, list_name, language, ask_yes)
+
+
+def finish(conn: sqlite3.Connection, proc: pipeline.Processor, source_id: int, list_name: str, language: str,
+           ask_yes: Any, ask_report: bool = True) -> None:
+    """Звіт (повтори, не в темі — один запит до моделі) й індексна нотатка списку."""
+    from .menu import open_file
+
+    if not ask_report or ask_yes(t("sort.ask_report")):
+        print(t("sort.reporting"))
+        report = library.make_report(conn, proc.chain, source_id, list_name, language)
+        print(t("sort.report_done", similar=len(report["similar"]), off_topic=len(report["off_topic"])))
+    path = proc.write_index(source_id, list_name)
+    print(t("sort.index_done", path=str(path)))
+    if ask_yes(t("sort.open_index")):
+        open_file(path)
 
 
 def edit_text(initial: str) -> str:

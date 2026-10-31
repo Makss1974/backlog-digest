@@ -601,6 +601,17 @@ def ask_yes(prompt: str) -> bool:
     return ask(f"{prompt} ({t('answers.yes_no_hint')}) ").lower() in i18n.words("answers.yes")
 
 
+def open_file(path: Path) -> None:
+    """Відкриває файл програмою за замовчуванням (нотатку — в Obsidian чи редакторі Markdown)."""
+    try:
+        if sys.platform == "win32":
+            os.startfile(path)  # type: ignore[attr-defined,unused-ignore]
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
+    except OSError as e:
+        print(t("menu.open_failed", detail=str(e)))
+
+
 def open_path(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     if sys.platform == "win32":

@@ -206,6 +206,7 @@ class Processor:
         self._fetched_before = False
         self._fetching = self._summarizing = True
         self._fetch_left = 0
+        self._touched: set[tuple[int, str]] = set()   # списки з новими нотатками — оновити їхні індекси
 
     # -- підготовка
 
@@ -237,9 +238,27 @@ class Processor:
             stats = self._run(limit, source_id, stage)
             if stats.done and self._summarizing:
                 self._assign_new()
+            self._update_indexes()
             return stats
         finally:
             runstate.finish(self.paths)
+
+    def _update_indexes(self) -> None:
+        """Індекси списків, які вже сортували чи для яких робили звіт, — з новими нотатками."""
+        for source_id, list_name in sorted(self._touched):
+            if db.get_scheme(self.conn, source_id, list_name):
+                with contextlib.suppress(OSError):
+                    self.write_index(source_id, list_name)
+        self._touched.clear()
+
+    def list_dir(self, source_id: int, list_name: str) -> Path:
+        source = self.sources.get(source_id) or db.get_source(self.conn, source_id) or {}
+        return notes.note_dir(self.root, source.get("output_dir") or source.get("name") or "", list_name)
+
+    def write_index(self, source_id: int, list_name: str) -> Path:
+        return library.write_index(self.conn, source_id, list_name, base=self.list_dir(source_id, list_name),
+                                   root=self.root, kind=self.cfg["output"]["kind"], labels=self.labels(),
+                                   language=self.language)
 
     def _assign_new(self) -> None:
         """Нові конспекти — у схеми тем їхніх списків (якщо список уже розсортовано)."""
@@ -511,8 +530,8 @@ class Processor:
     def rewrite(self, item: dict[str, Any], summary: dict[str, Any], processed: str = "") -> Path:
         """Пише нотатку в теку списку (і теми, якщо список розсортовано). Тема змінилась — нотатка
         переїжджає: стару видаляємо, порожні теки за нею теж."""
-        source = self.sources.get(item["source_id"]) or db.get_source(self.conn, item["source_id"]) or {}
-        base = notes.note_dir(self.root, source.get("output_dir") or source.get("name") or "", item["list_name"])
+        base = self.list_dir(item["source_id"], item["list_name"])
+        self._touched.add((item["source_id"], item["list_name"]))
         directory = notes.note_dir(base, item.get("topic") or "")
         old = Path(item["note_path"]) if item.get("note_path") else None
         path = old if old and old.parent == directory else notes.note_path(

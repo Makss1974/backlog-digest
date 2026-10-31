@@ -10,12 +10,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-from . import db, notes, summarize
+from . import db, notes, summarize, youtube
 from .i18n import t
 from .llm import Chain
 
@@ -194,3 +196,167 @@ def parse_json(text: str) -> dict[str, Any]:
         raise ValueError("the model did not return JSON")
     data = json.loads(s[start:end + 1])
     return data if isinstance(data, dict) else {}
+
+
+# ---------------------------------------------------------------- звіт
+
+REPORT_PROMPT = """You analyse the list of summaries "{name}". Write in {language}.
+1. similar — ONLY REPEATS: items that tell almost the same thing (the same advice, facts, the same speaker or
+   primary source), so that one of the group is enough. A shared general topic ("both are about the brain") is NOT
+   a repeat. An empty list is better than invented groups. For each group give the numbers, what exactly repeats,
+   and the number of the best one.
+2. off_topic — items that clearly do not fit the overall theme of the list (if the list is mixed, do not invent —
+   return []).
+Answer ONLY with JSON:
+{{"theme": "the overall theme of the list in one sentence",
+  "similar": [{{"ids": [numbers], "why": "what they share", "best": number}}],
+  "off_topic": [{{"id": number, "why": "why it does not fit"}}]}}"""
+
+
+def make_report(conn: sqlite3.Connection, chain: Chain, source_id: int, list_name: str, language: str
+                ) -> dict[str, Any]:
+    """Один запит до моделі: загальна тема списку, групи повторів, не в темі. Зберігається в схемі списку."""
+    items = db.done_items(conn, source_id, list_name, language)
+    system = REPORT_PROMPT.format(name=list_name, language=summarize.language_name(language))
+    raw = parse_json(chain.complete(system, compact(items)).text)
+    ids = {i: it["id"] for i, it in enumerate(items, 1)}
+
+    def item_id(x: Any) -> int | None:
+        return ids.get(int(x)) if str(x).strip().isdigit() else None
+
+    report: dict[str, Any] = {"theme": str(raw.get("theme") or ""), "similar": [], "off_topic": []}
+    for g in raw.get("similar") or []:
+        if not isinstance(g, dict):
+            continue
+        members = list(dict.fromkeys(m for m in (item_id(x) for x in g.get("ids") or []) if m))
+        if len(members) >= 2:
+            best = item_id(g.get("best"))
+            report["similar"].append({"ids": members, "why": str(g.get("why") or ""),
+                                      "best": best if best in members else None})
+    for o in raw.get("off_topic") or []:
+        found = item_id(o.get("id")) if isinstance(o, dict) else None
+        if found:
+            report["off_topic"].append({"id": found, "why": str(o.get("why") or "")})
+    if not db.get_scheme(conn, source_id, list_name):
+        db.save_scheme(conn, source_id, list_name, "none", [], "")
+    db.save_report(conn, source_id, list_name, report)
+    return report
+
+
+# ---------------------------------------------------------------- індекс
+
+GOOD_VERDICTS = ("watch", "partial")
+
+
+def index_path(base: Path, list_name: str, labels: dict[str, str]) -> Path:
+    name = list_name.rsplit("/", 1)[-1] if list_name else ""
+    return base / f"_{notes.sanitize(labels['index'] + (' — ' + name if name else ''), 100)}.md"
+
+
+def write_index(conn: sqlite3.Connection, source_id: int, list_name: str, *, base: Path, root: Path, kind: str,
+                labels: dict[str, str], language: str) -> Path:
+    """Індексна нотатка списку: найкращі, за темами (або все за оцінкою), повтори, не в темі, ненаукове,
+    проблеми. kind — obsidian ([[вікі-посилання]]) або markdown (звичайні посилання з відносним шляхом)."""
+    L = labels
+    path = index_path(base, list_name, L)
+    items = db.done_items(conn, source_id, list_name, language)
+    by_id = {it["id"]: it for it in items}
+    scheme = db.get_scheme(conn, source_id, list_name)
+    topics = scheme["topics"] if scheme else []
+    report = scheme["report"] if scheme else None
+    other = L["other_topic"]
+
+    def link(it: dict[str, Any], in_table: bool = False) -> str:
+        title = (it.get("title") or L["untitled"]).replace("|", "/").replace("[", "(").replace("]", ")")
+        note = Path(it.get("note_path") or "")
+        if kind == "obsidian":
+            try:
+                rel = note.relative_to(root).with_suffix("").as_posix()
+            except ValueError:
+                rel = note.stem
+            pipe = "\\|" if in_table else "|"   # у таблицях Obsidian «|» треба екранувати
+            return f"[[{rel}{pipe}{title}]]"
+        try:
+            rel = os.path.relpath(note, path.parent).replace(os.sep, "/")
+        except ValueError:   # нотатка на іншому диску
+            rel = note.as_uri()
+        return f"[{title}](<{rel}>)"
+
+    def details(it: dict[str, Any]) -> str:
+        if (it.get("kind") or "video") == "video":
+            return youtube.format_duration(it.get("duration"))
+        return str(it.get("author") or "")
+
+    def row(it: dict[str, Any]) -> str:
+        s = it["s"]
+        about = str(s.get("about") or "").replace("|", "/").replace("\n", " ")[:160]
+        verdict = notes.verdict_label(L, it.get("kind") or "video", s["verdict"])
+        return f"| {link(it, True)} | {'★' * int(s['score'])} | {verdict} | {details(it)} | {about} |"
+
+    head = (f"| {L['col_title']} | {L['score']} | {L['verdict']} | {L['col_details']} | {L['about']} |\n"
+            "|---|---|---|---|---|")
+    by_score = sorted(items, key=lambda it: (-int(it["s"]["score"]), it.get("position") or 0))
+    stat = conn.execute(
+        "SELECT COUNT(*) c, SUM(status='done') d, SUM(status IN ('new','error')) q, SUM(status='no_text') nt "
+        "FROM items WHERE source_id=? AND list_name=?", (source_id, list_name)).fetchone()
+    title = list_name.rsplit("/", 1)[-1] if list_name else ""
+    out = [f"# {L['index']}" + (f": {title}" if title else ""), "",
+           f"{L['stat_done']} **{stat['d'] or 0}** {L['stat_of']} {stat['c']} · {L['stat_queued']} {stat['q'] or 0}"
+           f" · {L['stat_no_text']} {stat['nt'] or 0} · {L['stat_updated']} {db.now()[:16].replace('T', ' ')}", ""]
+    if report and report.get("theme"):
+        out += [f"> {report['theme']}", ""]
+
+    best = [it for it in by_score if int(it["s"]["score"]) >= 4 and it["s"]["verdict"] in GOOD_VERDICTS]
+    if best:
+        out += [f"## ⭐ {L['best']}", head, *[row(it) for it in best], ""]
+
+    if topics:
+        out += [f"## {L['by_topic']}", ""]
+        for topic in topics:
+            group = [it for it in by_score if (it.get("topic") or other) == topic]
+            if "/" not in topic:
+                total = sum(1 for it in items if (it.get("topic") or other) == topic
+                            or (it.get("topic") or "").startswith(topic + "/"))
+                if total:
+                    out += [f"### {topic} ({total})", ""]
+            elif group:
+                out.append(f"#### {topic.split('/', 1)[1]} ({len(group)})")
+            if group:
+                out += [head, *[row(it) for it in group], ""]
+    else:
+        out += [f"## {L['all_by_score']}", head, *[row(it) for it in by_score], ""]
+
+    if report and report.get("similar"):
+        groups = []
+        for g in report["similar"]:
+            members = [by_id[m] for m in g["ids"] if m in by_id]
+            if len(members) >= 2:
+                groups.append(f"- **{g['why']}**")
+                groups += [f"    - {'✅ ' if m['id'] == g.get('best') else ''}{link(m)} ({m['s']['score']}/5)"
+                           for m in members]
+        if groups:
+            out += [f"## 🔁 {L['similar']}", L["similar_hint"], "", *groups, ""]
+    if report and report.get("off_topic"):
+        rows = [f"- {link(by_id[o['id']])} — {o['why']}" for o in report["off_topic"] if o["id"] in by_id]
+        if rows:
+            out += [f"## ↪️ {L['off_topic']}", *rows, ""]
+
+    pseudo = [it for it in by_score if it["s"].get("evidence") == "unscientific"]
+    if pseudo:
+        out += [f"## 🚫 {L['unscientific']}",
+                *[f"- {link(it)} — " + "; ".join(it["s"].get("questionable_claims", [])[:2]) for it in pseudo], ""]
+
+    problems = conn.execute(
+        "SELECT title, url, path, status, error FROM items WHERE source_id=? AND list_name=? "
+        "AND status IN ('error', 'failed', 'no_text') ORDER BY status, position", (source_id, list_name)).fetchall()
+    if problems:
+        out.append(f"## ⚠️ {L['problems']}")
+        for p in problems:
+            name = str(p["title"] or p["url"] or p["path"] or "?").replace("[", "(").replace("]", ")")
+            shown = f"[{name}]({p['url']})" if p["url"] else name
+            what = L[f"status_{p['status']}"] + (f": {str(p['error'])[:100]}" if p["error"] else "")
+            out.append(f"- {shown} — {what}")
+        out.append("")
+
+    notes.write_note(path, "\n".join(out))
+    return path
