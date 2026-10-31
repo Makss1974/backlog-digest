@@ -190,7 +190,7 @@ def _sync_telegram(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
     conn.commit()
     if export.posts or export.files:
         log(t("telegram.posts_files", posts=len(export.posts), files=len(export.files), new=sum(added.values())))
-    if not (export.links or export.posts or export.files):
+    if not (export.links or export.posts or export.files or settings.get("channels")):
         log(t("telegram.empty"))
     return new + sum(added.values())
 
