@@ -1,284 +1,159 @@
 # backlog-digest
 
-> 🚧 Before 1.0 — stage 5 of 7: YouTube, books, web articles, Raindrop → summaries, sorting, index, schedule.
-> До версії 1.0 — етап 5 із 7: YouTube, книги, веб-статті, Raindrop → конспекти, сортування, індекс, розклад.
+**Work through your "saved for later" pile.** Thousands of saved videos, articles and books →
+a library you can read in an evening.
 
-**EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
-a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
-delivered to your own Obsidian / Markdown folder / Raindrop. Free by default.
+[Українською](README.uk.md) · [FAQ](docs/FAQ.md) · [Example summary](docs/examples/video-summary.en.md) ·
+License: [MIT](LICENSE)
 
-**UK:** Розбери свої завали: тисячі збережених відео, статей, книг і постів → бібліотека,
-яку можна прочитати за вечір. Конспект, критична оцінка й вердикт «варто чи ні» для кожного елемента,
-сортування за темами, результат — у вашому Obsidian / Markdown-папці / Raindrop. Безкоштовно за замовчуванням.
+For every item backlog-digest writes a summary with a **critical score** and an honest **"worth it or not"**
+verdict, flags pseudoscience, sorts everything by topic, finds repeats, and puts the result into **your own**
+Obsidian vault, a plain Markdown folder or Raindrop.io. It runs on your computer with free model keys, works
+through thousands of items a little every day, and never loses progress.
 
-Specification (Ukrainian): [docs/ТЗ.md](docs/ТЗ.md)
+```text
+────────────────────────────────────────────────────────────
+  backlog-digest — 16 of 84 done, 66 in queue
+  waiting for subtitles: 44 (0 of 30 collected today) · ready to summarize: 22 · no text: 2
+  Sources: 2 (YouTube 1, Raindrop 1) · summaries → D:\Obsidian\Library
+  Models: 6 of 7 available · today's limit used up: gemini/gemini-3-flash-preview
+────────────────────────────────────────────────────────────
+   1. Statistics
+   2. Sources: YouTube, folders, articles
+   3. Make summaries
+   4. Sort by topic + report
+   5. Export to Raindrop.io
+   6. Schedule
+   7. Health check (doctor)
+   8. Settings
+   q. Quit
+```
 
-Based on the working personal prototype `yt-digest` (tag `personal-v1`).
+## What you get
 
-License / Ліцензія: [MIT](LICENSE).
+A note per item ([full example](docs/examples/video-summary.en.md)):
 
----
+> **Measles Explained — Vaccinate or Not?** · Kurzgesagt
+>
+> **Verdict: Watch** · Score: 5/5 ★★★★★
+>
+> **About:** how the measles virus bypasses the immune system, and why vaccination matters for herd immunity.
+> **Key ideas and facts:** 10 points with numbers · **What is new** · **Grounding:** evidence level, what the
+> author relies on, questionable claims · **How much filler:** ~10%, with timestamps · **Who it is for** ·
+> **Why this verdict**
 
-## Встановлення
+Verdicts: *Watch / Read*, *Watch part* (which fragments), *Summary is enough*, *Skip*. The score scale is
+strict on purpose — an average item gets 3, and unscientific content goes to *Skip*.
 
-Знадобиться лише [uv](https://docs.astral.sh/uv/) — невелика програма, яка сама поставить потрібний
-Python (3.11 або новіший) і backlog-digest окремо від решти системи. Права адміністратора не потрібні.
+Then, per list:
 
-**1. Встановіть uv** (один раз):
+- **Sorting by topic** — your own topics, "important / the rest" baskets, or a topic tree the model proposes;
+  notes move into topic folders after you see a preview.
+- **Index note** — the best items, everything by topic with scores, **groups of repeats** (watch only the
+  best one), off-topic and unscientific items, pages that failed.
+- **Raindrop.io export** — nested collections by list and topic, with the summary in the bookmark note.
 
-Windows — у PowerShell:
+## Sources
+
+| Source | How |
+|---|---|
+| **YouTube** — playlists, channels, single videos | Subtitles via yt-dlp — no Google Cloud, no YouTube keys |
+| **Folders** of books and documents (also Google Drive / OneDrive / Dropbox folders) | PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU with DjVuLibre; MOBI, AZW3, DOC with Calibre |
+| **Web articles** — links, browser bookmarks (HTML export), Pocket, Instapaper, CSV | Main text only (no menus, ads, comments) |
+| **Raindrop.io** bookmarks | Collections become lists; read-only |
+
+Long books are read in parts and continue after a stop. The same video or book in several lists is summarized
+once. YouTube links inside bookmarks become videos, PDF links become books.
+
+## Install
+
+You only need [uv](https://docs.astral.sh/uv/) — a small tool that installs the right Python and
+backlog-digest apart from the rest of your system. No administrator rights.
+
+**1. Install uv** (once). Windows, in PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-macOS і Linux — у Терміналі:
+macOS and Linux, in a terminal:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**2. Встановіть backlog-digest** і закрийте-відкрийте вікно терміналу:
+**2. Install backlog-digest**, then close and reopen the terminal:
 
 ```bash
 uv tool install backlog-digest
 uv tool update-shell
 ```
 
-> До виходу версії 1.0 пакета ще немає на PyPI — ставте з теки з кодом: `uv tool install D:\шлях\до\backlog-digest`.
-
-**3. Запустіть:**
+**3. Run it:**
 
 ```bash
 bdig
 ```
 
-Під час першого запуску майстер за кілька хвилин усе налаштує: мову, теку для конспектів, ключ моделі
-(безкоштовний Gemini), перше джерело й розклад, — і одразу зробить перший конспект.
-Ярлик на робочому столі: `bdig shortcut`. Перевірка, чи все гаразд: `bdig doctor`.
+On the first run a wizard sets everything up in a few minutes — language, notes folder, a model key, the first
+source, how many per day, a daily schedule — and makes your first summary right away.
+`bdig shortcut` puts a desktop shortcut that opens the program in its own window; `bdig doctor` checks that
+everything is in place.
 
-Додаткові програми потрібні лише для деяких форматів книг (DJVU — DjVuLibre; MOBI/AZW3/DOC — Calibre);
-`bdig doctor` підкаже, чого бракує.
+**Model key.** The easiest is a free Google Gemini key: open <https://aistudio.google.com/apikey>, sign in,
+"Create API key", paste it into the wizard. OpenRouter and DeepSeek keys work too and serve as spares when one
+model's daily limit runs out.
 
-Оновлення — `uv tool upgrade backlog-digest`. Видалення — `bdig autostart off`, потім
-`uv tool uninstall backlog-digest`; налаштування й база лишаються в теці програми (`bdig doctor` показує де),
-конспекти — у вашій теці.
+Upgrade: `uv tool upgrade backlog-digest`. Uninstall: `bdig autostart off`, then `uv tool uninstall backlog-digest`
+(your notes stay where they are).
 
-## Запуск з коду (для розробки)
+## Everyday use
 
-Потрібен Python 3.11 або новіший. Усі пакети ставляться в теку `.venv` усередині проєкту —
-системний Python не змінюється. Команди для PowerShell (Windows):
-
-```powershell
-cd D:\PROJECTS\IT-PROJECTS\backlog-digest
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
-```
-
-Запуск (без активації середовища — просто повний шлях до програми):
-
-```powershell
-.venv\Scripts\bdig                 # меню (вихід — q)
-.venv\Scripts\bdig doctor          # перевірка: Python, налаштування, ключі, мережа, програми, місце
-.venv\Scripts\bdig --lang fr doctor   # те саме французькою (uk, en, fr, es)
-.venv\Scripts\backlog-digest --help   # повна назва команди теж працює
-```
-
-Перевірки якості:
-
-```powershell
-.venv\Scripts\pytest          # тести
-.venv\Scripts\ruff check .    # стиль
-.venv\Scripts\mypy            # типи
-```
-
-На macOS/Linux те саме, але `.venv/bin/...` замість `.venv\Scripts\...`.
-
-### Ярлик і панель
-
-Меню → 8 Налаштування → 7 Створити ярлик (або `.venv\Scripts\bdig shortcut`): на робочому столі з'являється
-ярлик «backlog-digest», що відкриває програму в окремому вікні. Над меню завжди видно панель:
-скільки готово й скільки в черзі, скільки чекає субтитрів (і скільки зібрано сьогодні), джерела, куди
-складаються конспекти, скільки моделей доступно, а також чи працює зараз обробка в іншому вікні або за розкладом.
-
-### Конспекти YouTube (етап 2)
-
-Без Google Cloud і без ключів YouTube. Потрібен лише ключ моделі — безкоштовний ключ Gemini:
-<https://aistudio.google.com/apikey>.
-
-1. **Ключ:** меню → 8 Налаштування → 4 Ключі моделей → вставити (програма одразу перевіряє ключ
-   і зберігає його у `.env`). Або змінна середовища `GEMINI_API_KEY`.
-2. **Куди складати:** меню → 8 → 3 Тека для конспектів (тека сховища Obsidian або будь-яка тека).
-3. **Що розбирати:** меню → 2 Джерела → 1 Додати YouTube → посилання на плейлист, канал (`@назва`) або відео.
-4. **Конспекти:** меню → 3 → режим → скільки обробити. Ctrl+C зупиняє, прогрес зберігається.
-
-Обробка має два незалежні кроки — їх можна робити разом або окремо, у різний час:
-- **зібрати субтитри** — повільно, з вашої інтернет-адреси; моделі не потрібні. Тексти лежать у базі,
-  доки не готовий конспект, а потім видаляються (знадобляться знову — їх можна зібрати повторно);
-- **зробити конспекти** з уже зібраного — YouTube не потрібен, швидко, скільки дозволяють ліміти моделей.
-
-Тож коли YouTube тимчасово обмежив вашу адресу, конспекти з уже зібраного далі робляться;
-а коли скінчились ліміти моделей — далі збираються субтитри.
-
-Те саме командами (зручно для розкладу):
-
-```powershell
-.venv\Scripts\bdig add "https://www.youtube.com/playlist?list=..." --name "Наука" --folder "YouTube/Наука"
-.venv\Scripts\bdig sync               # знайти нові відео в усіх джерелах
-.venv\Scripts\bdig process --limit 20    # обидва кроки поспіль
-.venv\Scripts\bdig fetch --limit 30      # лише зібрати субтитри
-.venv\Scripts\bdig summarize             # лише конспекти із зібраного
-```
-
-Як це працює і чого чекати:
-- між запитами субтитрів — випадкова пауза 1–3 хв (`[youtube] delay_min/delay_max`) і не більше 30 запитів субтитрів
-  на добу (`[limits] per_day`; на конспекти цей ліміт не діє):
-  YouTube обмежує IP і за часті запити, і за їх кількість за добу;
-  якщо обмежив — програма більше до нього не звертається, а черга лишається на потім;
-- моделі — черга з запасними: коли денний ліміт однієї вичерпано, береться наступна, а вичерпані
-  запам'ятовуються до скидання лімітів; свої моделі й провайдери — у `[models]` файлу `config.toml`;
-- мова конспекту — будь-яка (налаштування), незалежно від мови відео; підписи нотаток для мов поза
-  uk/en/fr/es модель перекладає один раз, їх можна виправити у `note_labels/<код>.toml`;
-- відео без субтитрів отримують статус «без тексту» (розпізнавання мовлення — на пізніших етапах);
-- те саме відео в кількох списках конспектується один раз.
-
-### Книги й документи з папки (етап 3, частина 1)
-
-Меню → 2 Джерела → 2 Додати папку → повний шлях до теки (можна синхронізовану: Google Drive, OneDrive,
-Dropbox). Або командою: `.venv\Scripts\bdig add "D:\Книги"`. Підтеки першого рівня стають окремими списками.
-
-- Формати: PDF, EPUB, FB2 (і .fb2.zip), DOCX, ODT, RTF, HTML, TXT, MD — без додаткових програм;
-  DJVU — потрібна безкоштовна DjVuLibre; MOBI, AZW3, DOC — безкоштовна Calibre (`bdig doctor` покаже, чи знайдено).
-- Книги обробляються на кроці «конспекти» (меню → 3, режим 1 або 3; команда `bdig summarize`): YouTube
-  не потрібен, добовий ліміт субтитрів на них не діє.
-- Довга книга (понад `[models] max_chars` символів) читається частинами: спершу робочі нотатки кожної частини,
-  потім один підсумковий конспект. Нотатки частин зберігаються, тож після зупинки (скінчились ліміти моделей)
-  книга продовжиться з того місця; коли конспект готовий — вони видаляються.
-- Скан без текстового шару отримує статус «без тексту» (розпізнавання сканів — на пізніших етапах).
-- Та сама книга в кількох теках конспектується один раз; перейменований чи переміщений файл не стає новим.
-
-### Веб-статті (етап 3, частина 2)
-
-Меню → 2 Джерела → 3 Додати статті → по одному в рядку: посилання або повний шлях до файлу:
-- закладки браузера — HTML-експорт Chrome, Edge, Firefox, Safari (теки закладок стають списками);
-- експорт Pocket (HTML або CSV), Instapaper (CSV), будь-який CSV зі стовпцем `url`, або TXT — посилання в рядку.
-
-Або командою: `.venv\Scripts\bdig add "D:\bookmarks.html"` чи `.venv\Scripts\bdig add https://site/article`.
-
-- Програма завантажує сторінку й бере лише основний текст (без меню, реклами й коментарів — пакет trafilatura),
-  разом із назвою, автором і датою. Посилання на PDF читається як книга.
-- Статті обробляються на кроці «конспекти» (меню → 3, режим 1 або 3; команда `bdig summarize`).
-- Посилання на YouTube у закладках стають відео (той самий конспект, що й у джерелі YouTube).
-- Сторінки, якої більше немає (404), і сторінки без тексту статті (вхід, платний доступ) отримують
-  статус «без тексту»; тимчасові помилки сайту — повтор пізніше.
-- Файл закладок перечитується при кожному оновленні списків: можна перезберегти його з браузера —
-  додадуться лише нові посилання.
-- **Лише потрібні теки.** Після файлу закладок програма показує теки з кількістю посилань: номер — вибрати
-  теку (з вкладеними), `>номер` — відкрити теку, `<` — назад, Enter — готово (нічого не вибрано — усе).
-  Командою: `--only "База 2/Наука"` (можна кілька разів). Великі колекції (десятки тисяч закладок)
-  краще брати частинами: безкоштовні моделі дають кілька сотень конспектів на добу.
-- Теки, вкладені глибше 5 рівнів, для нотаток зливаються в одну («Г · Ґ · Д»), щоб не перевищити
-  обмеження Windows на довжину шляху.
-
-### Закладки з Raindrop.io (етап 3, частина 3)
-
-1. **Токен:** <https://app.raindrop.io/settings/integrations> → «Create new app» (назва будь-яка) →
-   відкрити створену програму → «Create test token». Програма лише читає закладки, у Raindrop нічого не змінює.
-2. Меню → 2 Джерела → 4 Додати закладки з Raindrop → вставити токен (його не видно; перевіряється й
-   зберігається у `.env`) → вибрати колекції за номерами або Enter — усі закладки.
-   Або командою (токен — у `RAINDROP_TOKEN` чи `.env`): `.venv\Scripts\bdig add raindrop` (усі) чи
-   `.venv\Scripts\bdig add raindrop "Наука" "Читати пізніше"` (лише ці колекції).
-
-- Колекції стають списками, вкладені — з повним шляхом («Наука/Фізика»); вибрана колекція береться разом
-  із вкладеними. «Несортовані» — без списку; кошик і зображення пропускаються.
-- Далі все як зі статтями: посилання на YouTube — відео, PDF — книга, решта — веб-статті (крок «конспекти»).
-- При кожному оновленні списків нові закладки з Raindrop додаються самі.
-
-### Сортування за темами (етап 4, частина 1)
-
-Меню → 4 → вибрати список → режим:
-- **Мої теми** — теми й підтеми пишете ви (відкривається Блокнот / TextEdit / nano; підтема — з відступом);
-- **Важливість** — кошики на зразок «Важливо, Різне» за вашим правилом словами;
-- **Авто** — модель пропонує дерево тем (можна виправити в редакторі).
-
-Можна додати критерії (за змістом, цінністю, глибиною, обґрунтованістю) і свої правила словами.
-Спершу — попередній перегляд (скільки в кожній темі й приклади), нотатки переносяться в теки тем
-лише після згоди. Модель бачить лише стислий опис конспектів: на 40 конспектів — один запит.
-Схема запам'ятовується: нові конспекти цього списку після обробки розкладаються в її теми самі.
-
-### Звіт та індекс списку (етап 4, частина 2)
-
-Після сортування (або окремо: меню → 4 → «Лише звіт та індекс») програма робить звіт одним
-запитом до моделі: головна тема списку, групи повторів (з позначкою ✅ на найкращому) і що не в темі.
-У теці списку з'являється нотатка `_Індекс — <список>.md`: найкращі, усі за темами з оцінкою й
-вердиктом, повтори, не в темі, ненаукове, помилки й сторінки без тексту. Посилання — вікі-посилання
-Obsidian або звичайні Markdown-посилання. Після кожної обробки індекс таких списків оновлюється сам.
-
-### Експорт у Raindrop.io (етап 4, частина 3)
-
-Меню → 5 (або `bdig export [--root НАЗВА]`): конспекти стають закладками в окремій кореневій колекції
-(за замовчуванням «Backlog digest»). Усередині — підколекції за списками й темами, у закладці —
-короткий опис, нотатка (вердикт, оцінка, головне, сумнівне) і теги. Ваші наявні закладки не змінюються,
-а колекція експорту не імпортується назад. Повторний експорт надсилає лише нове й змінене: тема змінилась —
-закладка переїжджає; видалили закладку чи колекцію в Raindrop — створюється знову. Книги й файли
-з диска не експортуються: у них немає посилання.
-
-### Розклад (етап 5, частина 1)
-
-Меню → 6: завдання «що й коли» — джерело (або всі) і список (або всі), скільки за раз, кроки
-(оновити списки → конспекти → звіт та індекс → Raindrop), щодня чи раз на тиждень, «не раніше ГГ:ХХ».
-Комп'ютер був вимкнений — завдання виконається при першому запуску після свого часу.
-
-Автозапуск (там само або `bdig autostart on|off|status`) ставить системне завдання без прав адміністратора:
-Windows — Планувальник завдань (без вікна), macOS — launchd, Linux — таймер systemd або cron.
-Воно щогодини й після входу в систему викликає `bdig run-jobs`, а програма сама вирішує, чи час.
-Паралельно не запускається; журнал — у `logs/` теки програми й нотатка «_Журнал розкладу» у сховищі.
-Вручну: `bdig run-jobs --force` (усі ввімкнені) або `--job N`.
-
-### Майстер першого запуску (етап 5, частина 2)
-
-Коли програму відкрито вперше (ще немає ні теки для конспектів, ні джерел), вона пропонує налаштування
-в 6 кроків: мова → куди складати (Obsidian чи будь-яка тека) → ключ моделі (посилання на безкоштовний
-ключ Gemini і перевірка) → перше джерело → скільки на день → щоденний розклад. Наприкінці можна одразу
-зробити перший конспект і відкрити його. Будь-який крок пропускається клавішею Enter. Повторно:
-`bdig setup` або меню → 8 → «Майстер налаштування».
-
-### Де програма тримає файли
-
-| Що | Windows | macOS | Linux |
-|---|---|---|---|
-| Налаштування `config.toml` і ключі `.env` | `%APPDATA%\backlog-digest` | `~/Library/Application Support/backlog-digest` | `~/.config/backlog-digest` |
-| База, кеш, журнали | `%LOCALAPPDATA%\backlog-digest` | те саме | `~/.local/share/backlog-digest` |
-
-Змінна середовища `BACKLOG_DIGEST_HOME=<тека>` кладе все в одну теку (портативний режим, тести).
-
-Мова інтерфейсу й мова конспектів — окремі налаштування (меню → 8). Ключі моделей (`GEMINI_API_KEY`,
-`OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`) і `RAINDROP_TOKEN` читаються зі змінних середовища або з
-файлу `.env` у теці налаштувань; програма ніколи не показує їхні значення.
-
-## Installation
-
-All you need is [uv](https://docs.astral.sh/uv/): a small tool that installs the right Python (3.11+) and
-backlog-digest apart from the rest of your system. No administrator rights needed.
-
-1. Install uv once — Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
-   macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-2. `uv tool install backlog-digest`, then `uv tool update-shell` and reopen the terminal
-   (until 1.0 is on PyPI: `uv tool install /path/to/backlog-digest`).
-3. Run `bdig`. On the first run a wizard sets up the language, the notes folder, a model key (free Gemini),
-   the first source and the schedule, and makes your first summary. Desktop shortcut: `bdig shortcut`;
-   health check: `bdig doctor`.
-
-Upgrade: `uv tool upgrade backlog-digest`. Uninstall: `bdig autostart off`, then `uv tool uninstall backlog-digest`.
-
-## Running from source (development)
-
-Python 3.11+. Create a virtual environment and install in editable mode:
+Everything is in the menu (`bdig`); the same works as commands, which is handy for scripts:
 
 ```bash
-python -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"   # Windows: .venv\Scripts\python
-.venv/bin/bdig            # interactive menu (q to quit)
-.venv/bin/bdig doctor     # health check; --lang uk|en|fr|es, --offline
-.venv/bin/pytest && .venv/bin/ruff check . && .venv/bin/mypy
+bdig add "https://www.youtube.com/playlist?list=..." --name Science   # a YouTube source
+bdig add "D:\Books"                                                   # a folder of books
+bdig add bookmarks.html --only "Reading/Science"                      # browser bookmarks, one folder
+bdig add raindrop "Read later"                                        # Raindrop collections
+bdig sync                     # find new items in all sources
+bdig process --limit 20       # collect texts and write summaries
+bdig export                   # send summaries to Raindrop
+bdig run-jobs --force         # run the scheduled jobs now
 ```
+
+**Schedule.** Menu → 6: what to do (update lists → summaries → report → Raindrop), how many, daily or weekly,
+"not before HH:MM". Autostart uses the system scheduler without administrator rights — Task Scheduler on
+Windows, launchd on macOS, a systemd timer or cron on Linux. If the computer was off, the job catches up the
+next time. A log goes to a file and to a "_Schedule log" note.
+
+**Gentle with limits.** Free models and YouTube have daily limits, so the program works in portions:
+1–3 minute pauses between subtitle requests, at most 30 subtitle requests a day (configurable), a queue of spare
+models, and if YouTube limits your address it stops asking and keeps summarizing what is already collected.
+Ctrl+C stops at any moment; the next run continues where it stopped.
+
+**Languages.** The interface is in English, Ukrainian, French and Spanish. Summaries can be in any language,
+regardless of the language of the video or book.
+
+## Your data stays yours
+
+- Everything runs on your computer. Notes are plain Markdown files in your folder.
+- Sources are read-only: nothing is changed in YouTube, your bookmarks or Raindrop (the export goes into its own
+  collection).
+- Keys live in environment variables or in a `.env` file in the settings folder; the program never shows them.
+- No telemetry.
+
+| What | Windows | macOS | Linux |
+|---|---|---|---|
+| Settings `config.toml` and keys `.env` | `%APPDATA%\backlog-digest` | `~/Library/Application Support/backlog-digest` | `~/.config/backlog-digest` |
+| Database, cache, logs | `%LOCALAPPDATA%\backlog-digest` | same | `~/.local/share/backlog-digest` |
+
+`BACKLOG_DIGEST_HOME=<folder>` (or `bdig --home <folder>`) keeps everything in one folder.
+
+## More
+
+- [FAQ](docs/FAQ.md): limits, blocked YouTube, scanned books, long paths on Windows and other pitfalls.
+- [Development](docs/development.md): running from source, tests, project layout.
+- [Specification](docs/ТЗ.md) (Ukrainian).
+
+Grew out of the author's personal tool `yt-digest`, used daily for video summaries.
