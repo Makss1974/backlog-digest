@@ -12,7 +12,7 @@ label_value = "{label}: {value}"
 
 [menu]
 stats = "Статистика"
-sources = "Джерела: YouTube, папки, статті"
+sources = "Джерела: YouTube, папки, статті, Raindrop"
 summaries = "Зробити конспекти"
 sorting = "Сортування за темами + звіт"
 raindrop = "Експорт у Raindrop.io"

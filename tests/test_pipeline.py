@@ -372,3 +372,11 @@ def web_link(url, list_name):
     from backlog_digest import web
 
     return web.Link(url, "", list_name)
+
+
+def test_single_video_goes_straight_into_source_folder(env, monkeypatch):
+    single = youtube.Listing("", [youtube.Entry("vid00000009", "Lone video", "Chan", 60)])
+    monkeypatch.setattr(youtube, "list_url", lambda url, cookies=None: single)
+    assert sync(env)[0] == 1
+    env.make().run(limit=1)
+    assert (env.root / "Video" / "Lone video.md").exists()     # не «Video/YouTube/Lone video.md»

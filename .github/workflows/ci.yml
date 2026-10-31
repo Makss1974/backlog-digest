@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.11", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -34,3 +34,24 @@ jobs:
         run: |
           for lang in uk en fr es; do backlog-digest --lang "$lang" doctor --offline; done
           bdig --version
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build twine
+          python -m build
+          twine check --strict dist/*
+      - name: Install the wheel and run it
+        shell: bash
+        env:
+          BACKLOG_DIGEST_HOME: ${{ runner.temp }}/bd-home
+        run: |
+          python -m pip install dist/*.whl
+          bdig --version
+          bdig --lang en doctor --offline

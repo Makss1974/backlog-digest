@@ -13,7 +13,7 @@ python -m venv .venv
 .venv/bin/bdig doctor          # health check; --lang uk|en|fr|es, --offline
 ```
 
-Quality checks — the same three run in CI (Windows and Linux, Python 3.11 and 3.13):
+Quality checks — the same three run in CI (Windows, macOS, Linux; Python 3.11 and 3.13), plus a package build:
 
 ```bash
 .venv/bin/pytest

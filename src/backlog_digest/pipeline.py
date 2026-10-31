@@ -157,7 +157,7 @@ def _sync_youtube(conn: sqlite3.Connection, source: dict[str, Any], log: Log) ->
         except youtube.ListError as e:
             log(t("sync.list_error", url=url, detail=str(e)))
             continue
-        list_name = listing.title or source["name"]
+        list_name = listing.title   # окремі відео — без списку, прямо в теці джерела (не «YouTube/YouTube»)
         added = 0
         for pos, entry in enumerate(listing.entries):
             if db.upsert_item(conn, source["id"], f"youtube:{entry.id}", list_name, kind="video",
@@ -165,7 +165,7 @@ def _sync_youtube(conn: sqlite3.Connection, source: dict[str, Any], log: Log) ->
                               duration=entry.duration, position=pos):
                 added += 1
         new += added
-        log(t("sync.list_done", name=list_name, total=len(listing.entries), new=added))
+        log(t("sync.list_done", name=list_name or source["name"], total=len(listing.entries), new=added))
     return new
 
 

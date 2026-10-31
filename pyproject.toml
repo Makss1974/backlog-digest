@@ -4,17 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backlog-digest"
-version = "0.1.0.dev0"
+dynamic = ["version"]     # з src/backlog_digest/__init__.py — одне місце для номера версії
 description = "Turn your backlog of saved videos, articles, books and posts into a readable library."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "makss1974ustim" }]
+keywords = ["summary", "youtube", "obsidian", "bookmarks", "raindrop", "llm", "gemini", "reading-list"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Text Processing :: General",
+    "Topic :: Education",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Environment :: Console",
     "Natural Language :: Ukrainian",
     "Natural Language :: English",
@@ -29,12 +39,25 @@ dependencies = [
     "trafilatura>=2,<3",                # основний текст веб-статей
 ]
 
+[project.urls]
+Homepage = "https://github.com/makss1974ustim/backlog-digest"
+Documentation = "https://github.com/makss1974ustim/backlog-digest#readme"
+FAQ = "https://github.com/makss1974ustim/backlog-digest/blob/main/docs/FAQ.md"
+Changelog = "https://github.com/makss1974ustim/backlog-digest/blob/main/CHANGELOG.md"
+Issues = "https://github.com/makss1974ustim/backlog-digest/issues"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
 
 [project.scripts]
 backlog-digest = "backlog_digest.cli:main"
 bdig = "backlog_digest.cli:main"
+
+[tool.hatch.version]
+path = "src/backlog_digest/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "docs", "README.md", "README.uk.md", "CHANGELOG.md", "LICENSE"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/backlog_digest"]

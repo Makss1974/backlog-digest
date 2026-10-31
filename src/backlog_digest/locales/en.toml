@@ -12,7 +12,7 @@ label_value = "{label}: {value}"
 
 [menu]
 stats = "Statistics"
-sources = "Sources: YouTube, folders, articles"
+sources = "Sources: YouTube, folders, articles, Raindrop"
 summaries = "Make summaries"
 sorting = "Sort by topic + report"
 raindrop = "Export to Raindrop.io"
@@ -334,7 +334,7 @@ running = "▶ Running now: {stage}, since {since} (another window or the schedu
 stage_all = "subtitles and summaries"
 stage_fetch = "collecting subtitles"
 stage_summarize = "summaries"
-schedule = "Schedule: {n} jobs, autostart {auto}"
+schedule = "Schedule: jobs {n}, autostart {auto}"
 stage_schedule = "scheduled jobs"
 
 [sort]

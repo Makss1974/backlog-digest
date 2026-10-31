@@ -3,8 +3,8 @@
 **Work through your "saved for later" pile.** Thousands of saved videos, articles and books →
 a library you can read in an evening.
 
-[Українською](README.uk.md) · [FAQ](docs/FAQ.md) · [Example summary](docs/examples/video-summary.en.md) ·
-License: [MIT](LICENSE)
+[Українською](https://github.com/makss1974ustim/backlog-digest/blob/main/README.uk.md) · [FAQ](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/FAQ.md) · [Example summary](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/examples/video-summary.en.md) ·
+License: [MIT](https://github.com/makss1974ustim/backlog-digest/blob/main/LICENSE)
 
 For every item backlog-digest writes a summary with a **critical score** and an honest **"worth it or not"**
 verdict, flags pseudoscience, sorts everything by topic, finds repeats, and puts the result into **your own**
@@ -19,7 +19,7 @@ through thousands of items a little every day, and never loses progress.
   Models: 6 of 7 available · today's limit used up: gemini/gemini-3-flash-preview
 ────────────────────────────────────────────────────────────
    1. Statistics
-   2. Sources: YouTube, folders, articles
+   2. Sources: YouTube, folders, articles, Raindrop
    3. Make summaries
    4. Sort by topic + report
    5. Export to Raindrop.io
@@ -31,7 +31,7 @@ through thousands of items a little every day, and never loses progress.
 
 ## What you get
 
-A note per item ([full example](docs/examples/video-summary.en.md)):
+A note per item ([full example](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/examples/video-summary.en.md)):
 
 > **Measles Explained — Vaccinate or Not?** · Kurzgesagt
 >
@@ -152,8 +152,8 @@ regardless of the language of the video or book.
 
 ## More
 
-- [FAQ](docs/FAQ.md): limits, blocked YouTube, scanned books, long paths on Windows and other pitfalls.
-- [Development](docs/development.md): running from source, tests, project layout.
-- [Specification](docs/ТЗ.md) (Ukrainian).
+- [FAQ](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/FAQ.md): limits, blocked YouTube, scanned books, long paths on Windows and other pitfalls.
+- [Development](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/development.md): running from source, tests, project layout.
+- [Specification](https://github.com/makss1974ustim/backlog-digest/blob/main/docs/ТЗ.md) (Ukrainian).
 
 Grew out of the author's personal tool `yt-digest`, used daily for video summaries.
