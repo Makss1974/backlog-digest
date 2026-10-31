@@ -18,20 +18,20 @@ def test_panel_shows_queue_sources_models_and_running(paths, monkeypatch):
     db.upsert_item(m.conn, sid, "url:a", kind="article")
     db.upsert_item(m.conn, sid, "youtube:v", kind="video")
     lines = m.panel()
-    assert "0 of 2 done" in lines[0]
+    assert lines[0] == "📦 0 of 2 done, 2 in queue"
     assert "waiting for subtitles: 1 (0 of 30" in lines[1] and "ready to summarize: 1" in lines[1]
-    assert "Sources: 1 (Raindrop 1)" in lines[2] and "no folder for summaries" in lines[2]
-    assert "no key" in lines[3]
+    assert lines[2] == "📥 Sources: 1 (Raindrop 1)" and "no folder for summaries" in lines[3].lower()
+    assert "no key" in lines[4]
     monkeypatch.setenv("GEMINI_API_KEY", "x")
     names, _ = llm.model_status(m.cfg, paths)
     (paths.data_dir / "quota.json").write_text(json.dumps({"day": llm.quota_day(), "exhausted": names[:1]}))
-    line = m.panel()[3]
+    line = m.panel()[4]
     assert f"{len(names) - 1} of {len(names)} available" in line and names[0] in line
     # обробка в іншому процесі
     monkeypatch.setattr(runstate, "alive", lambda pid: True)
     (paths.data_dir / runstate.FILE).write_text(json.dumps({"pid": os.getpid() + 1, "started": "2026-10-30T23:10:00",
                                                             "stage": "fetch"}))
-    assert m.panel()[-1] == "▶ Running now: collecting subtitles, since 23:10 (another window or the schedule)"
+    assert m.panel()[-1] == "🟢 Running now: collecting subtitles, since 23:10 (another window or the schedule)"
     m.conn.close()
 
 

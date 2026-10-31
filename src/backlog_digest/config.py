@@ -21,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "general": {
         "ui_language": "",        # мова інтерфейсу: uk / en / fr / es ("" — як у системі)
         "summary_language": "",   # мова конспектів, незалежно від мови джерела ("" — як інтерфейс)
+        "colors": True,           # кольори в меню (рамки лишаються й без них)
     },
     "output": {
         "kind": "obsidian",       # obsidian / markdown
@@ -117,6 +118,8 @@ def validate(cfg: dict[str, Any]) -> None:
         g["summary_language"] = g["ui_language"]
     if not isinstance(g["summary_language"], str) or not _LANG_CODE.match(g["summary_language"]):
         raise ConfigError("config.err_summary_language", value=g["summary_language"])
+    if not isinstance(g["colors"], bool):
+        raise ConfigError("config.err_bool", name="general.colors", value=g["colors"])
     if cfg["output"]["kind"] not in OUTPUT_KINDS:
         raise ConfigError("config.err_output_kind", value=cfg["output"]["kind"],
                           allowed=", ".join(OUTPUT_KINDS))

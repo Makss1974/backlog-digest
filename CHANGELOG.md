@@ -18,6 +18,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
   any of them in full, list the sources and ask the library. No extra packages; read-only.
   `bdig mcp --config` prints the settings block for the assistant.
 
+### Interface
+- A neater menu: a status panel and the menu in frames, the menu in columns, sources as a table,
+  section headers. No extra packages. Colors can be switched off: Settings → 9, `[general] colors = false`
+  or the `NO_COLOR` variable.
+
 ### Fixes
 - YouTube links without a title (from posts or plain link lists) get their title and channel before the summary,
   so the note is no longer named "_".

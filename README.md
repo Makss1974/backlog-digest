@@ -12,22 +12,20 @@ Obsidian vault, a plain Markdown folder or Raindrop.io. It runs on your computer
 through thousands of items a little every day, and never loses progress.
 
 ```text
-────────────────────────────────────────────────────────────
-  backlog-digest — 16 of 84 done, 66 in queue
-  waiting for subtitles: 44 (0 of 30 collected today) · ready to summarize: 22 · no text: 2
-  Sources: 2 (YouTube 1, Raindrop 1) · summaries → D:\Obsidian\Library
-  Models: 6 of 7 available · today's limit used up: gemini/gemini-3-flash-preview
-────────────────────────────────────────────────────────────
-   1. Statistics
-   2. Sources: YouTube, folders, articles, Raindrop, Telegram
-   3. Make summaries
-   4. Sort by topic + report
-   5. Export to Raindrop.io
-   6. Schedule
-   7. Health check (doctor)
-   8. Settings
-   9. Ask the library
-   q. Quit
+╭─ 📚 backlog-digest 1.1.0 ────────────────────────────────────────────────────────────────────────╮
+│ 📦 16 of 84 done, 66 in queue                                                                    │
+│ 🕒 waiting for subtitles: 44 (0 of 30 collected today) · ready to summarize: 22 · no text: 2     │
+│ 📥 Sources: 2 (YouTube 1, Raindrop 1)                                                            │
+│ 📁 Summaries → D:\Obsidian\Library                                                               │
+│ 🤖 Models: 6 of 7 available · today's limit used up: gemini/gemini-3-flash-preview               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Menu ───────────────────────────────────────────────────────────────────────────────────────────╮
+│ 1  📊 Statistics                                                 6  📅 Schedule                  │
+│ 2  📥 Sources: YouTube, folders, articles, Raindrop, Telegram    7  🩺 Health check (doctor)     │
+│ 3  📝 Make summaries                                             8  🔧 Settings                  │
+│ 4  🧭 Sort by topic + report                                     9  ❓ Ask the library           │
+│ 5  🔖 Export to Raindrop.io                                      q  🚪 Quit                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## What you get

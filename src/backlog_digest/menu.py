@@ -26,14 +26,19 @@ from . import (
     schedule,
     shortcut,
     telegram,
+    ui,
     web,
     wizard,
 )
 from .i18n import t
 from .paths import Paths
 
-LINE = "─" * 60
 QUIT_KEYS = ("q", "й")   # «й» — та сама клавіша в українській розкладці
+
+
+# значки пунктів головного меню — лише «широкі» емодзі, щоб рамки не з'їжджали (див. ui.py)
+ICONS = {"1": "📊", "2": "📥", "3": "📝", "4": "🧭", "5": "🔖", "6": "📅", "7": "🩺", "8": "🔧", "9": "❓",
+         "q": "🚪"}
 
 
 class Menu:
@@ -42,6 +47,7 @@ class Menu:
         self.cfg = cfg
         self.conn = conn
         self._autostart: bool | None = None    # перевірка планувальника повільна — пам'ятаємо
+        ui.set_colors(bool(cfg["general"].get("colors", True)))
 
     def items(self) -> list[tuple[str, str, Callable[[], None]]]:
         """Пункти меню: (клавіша, назва, дія). Будуються щоразу — назви залежать від мови."""
@@ -68,14 +74,14 @@ class Menu:
             except EOFError:
                 return
         while True:
-            print(f"\n{LINE}")
-            for line in self.panel():
-                print(f"  {line}")
-            print(LINE)
+            print()
+            for line in ui.box(self.panel(), title="📚 " + t("app.title", version=__version__)):
+                print(line)
             items = self.items()
-            for key, title, _ in items:
-                print(f"  {key:>2}. {title}")
-            print(f"   q. {t('menu.quit')}")
+            cells = [ui.item(key, f"{ICONS.get(key, '•')} {title}") for key, title, _ in items]
+            cells.append(ui.item("q", f"{ICONS['q']} {t('menu.quit')}"))
+            for line in ui.box(ui.grid(cells), title=t("menu.title"), color="cyan"):
+                print(line)
             try:
                 choice = ask(f"\n{t('menu.prompt')} ").lower()
             except (EOFError, KeyboardInterrupt):
@@ -100,7 +106,7 @@ class Menu:
 
     def panel(self) -> list[str]:
         """Панель над меню: усе головне одним поглядом — черга, субтитри, джерела, моделі, що працює."""
-        lines = [f"{t('app.title', version=__version__)} — {self.queue_line()}"]
+        lines = [f"📦 {self.queue_line()}"]
         counts = db.status_counts(self.conn)
         language = self.cfg["general"]["summary_language"]
         to_fetch, to_summarize = db.stage_counts(self.conn, language) if sum(counts.values()) else (0, 0)
@@ -115,24 +121,24 @@ class Menu:
         if counts[db.FAILED]:
             work.append(t("panel.failed", n=counts[db.FAILED]))
         if work:
-            lines.append(" · ".join(work))
+            lines.append("🕒 " + " · ".join(work))
         sources = db.list_sources(self.conn)
         by_type: dict[str, int] = {}
         for s in sources:
             by_type[s["type"]] = by_type.get(s["type"], 0) + 1
         kinds = ", ".join(f"{t(f'sources.type_{k}')} {n}" for k, n in by_type.items())
         where = self.cfg["output"]["path"]
-        lines.append(t("panel.sources", n=len(sources), kinds=f" ({kinds})" if kinds else "") + " · "
-                     + (t("panel.output", path=where) if where else t("panel.no_output")))
+        lines.append("📥 " + t("panel.sources", n=len(sources), kinds=f" ({kinds})" if kinds else ""))
+        lines.append("📁 " + (t("panel.output", path=where) if where else t("panel.no_output")))
         models, used = llm.model_status(self.cfg, self.paths)
         if not models:
-            lines.append(t("panel.no_models"))
+            lines.append("🤖 " + t("panel.no_models"))
         else:
-            lines.append(t("panel.models", active=len(models) - len(used), total=len(models))
+            lines.append("🤖 " + t("panel.models", active=len(models) - len(used), total=len(models))
                          + (" · " + t("panel.exhausted", names=", ".join(used)) if used else ""))
         jobs = [j for j in schedule.list_jobs(self.conn) if j["enabled"]]
         if jobs:
-            lines.append(t("panel.schedule", n=len(jobs), auto="✅" if self.autostart_on() else "❌"))
+            lines.append("📅 " + t("panel.schedule", n=len(jobs), auto="✅" if self.autostart_on() else "❌"))
         running = runstate.current(self.paths)
         if running:
             lines.append(t("panel.running", stage=t(f"panel.stage_{running.get('stage', 'all')}"),
@@ -152,7 +158,7 @@ class Menu:
     def show_stats(self) -> None:
         counts = db.status_counts(self.conn)
         sources = db.list_sources(self.conn)
-        print(t("stats.title"))
+        print(ui.header(f"{ICONS['1']} {t('stats.title')}"))
         print(f"  {pair(t('stats.sources'), len(sources))}")
         print(f"  {pair(t('stats.items'), sum(counts.values()))}")
         for status in db.STATUSES:
@@ -237,7 +243,7 @@ class Menu:
     def schedule_menu(self) -> None:
         while True:
             jobs = schedule.list_jobs(self.conn)
-            print(t("schedule.title"))
+            print(ui.header(f"{ICONS['6']} {t('schedule.title').rstrip(':')}"))
             if not jobs:
                 print(f"  {t('schedule.no_jobs')}")
             for j in jobs:
@@ -340,15 +346,20 @@ class Menu:
     def sources_menu(self) -> None:
         while True:
             sources = db.list_sources(self.conn)
-            print(t("sources.title"))
+            print(ui.header(f"{ICONS['2']} {t('sources.title')}"))
             if not sources:
                 print(f"  {t('sources.none')}")
+            rows = []
             for s in sources:
-                total, queued = self.conn.execute(
-                    "SELECT COUNT(*), SUM(status IN ('new', 'error')) FROM items WHERE source_id=?",
-                    (s["id"],)).fetchone()
-                kind = t(f"sources.type_{s['type']}")
-                print(f"  • {s['name']} ({kind}): {t('sources.counts', total=total, queued=queued or 0)}")
+                total, done, queued = self.conn.execute(
+                    "SELECT COUNT(*), SUM(status='done'), SUM(status IN ('new', 'error')) FROM items "
+                    "WHERE source_id=?", (s["id"],)).fetchone()
+                rows.append([s["name"], t(f"sources.type_{s['type']}"), str(done or 0), str(queued or 0), str(total)])
+            if rows:
+                heads = [t("sources.col_name"), t("sources.col_type"), t("sources.col_done"),
+                         t("sources.col_queued"), t("sources.col_total")]
+                for line in ui.table(heads, rows, align="llrrr"):
+                    print(f"  {line}")
             print(f"\n  1. {t('sources.add_youtube')}")
             print(f"  2. {t('sources.add_folder')}")
             print(f"  3. {t('sources.add_web')}")
@@ -632,7 +643,7 @@ class Menu:
     def settings(self) -> None:
         while True:
             g = self.cfg["general"]
-            print(t("settings.title"))
+            print(ui.header(f"{ICONS['8']} {t('settings.title')}"))
             print(f"  1. {pair(t('settings.ui_language'), i18n.language_name(g['ui_language']))}")
             summary = i18n.SUMMARY_LANGUAGES.get(g["summary_language"], g["summary_language"])
             print(f"  2. {pair(t('settings.summary_language'), summary)}")
@@ -643,8 +654,10 @@ class Menu:
             print(f"  6. {t('settings.open_config_dir')}")
             print(f"  7. {t('settings.shortcut')}")
             print(f"  8. {t('settings.wizard')}")
+            colors = t("settings.on") if g.get("colors", True) else t("settings.off")
+            print(f"  9. {pair(t('settings.colors'), colors)}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 8)
+            choice = ask_int(t("settings.choose"), 0, 0, 9)
             if choice == 0:
                 return
             if choice == 1:
@@ -663,6 +676,10 @@ class Menu:
                 make_shortcut(self.paths)
             elif choice == 8:
                 wizard.run(self)
+            elif choice == 9:
+                g["colors"] = not g.get("colors", True)
+                ui.set_colors(g["colors"])
+                self.save()
             print()
 
     def choose_output(self, explain: bool = True) -> bool:

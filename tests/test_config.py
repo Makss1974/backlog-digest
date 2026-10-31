@@ -9,7 +9,7 @@ from backlog_digest import config, i18n
 
 def test_missing_file_gives_defaults(paths):
     cfg = config.load(paths)
-    assert cfg["general"] == {"ui_language": "en", "summary_language": "en"}
+    assert cfg["general"] == {"ui_language": "en", "summary_language": "en", "colors": True}
     assert cfg["limits"]["per_run"] == 30
     assert not paths.config_file.exists()
 
@@ -37,7 +37,7 @@ def test_ui_and_summary_language_are_independent(paths):
     cfg["general"].update(ui_language="es", summary_language="pt-BR")
     config.save(paths, cfg)
     loaded = config.load(paths)
-    assert loaded["general"] == {"ui_language": "es", "summary_language": "pt-BR"}
+    assert loaded["general"] == {"ui_language": "es", "summary_language": "pt-BR", "colors": True}
 
 
 def test_roundtrip_windows_path_and_unicode(paths):
