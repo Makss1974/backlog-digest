@@ -26,6 +26,7 @@ from . import (
     schedule,
     shortcut,
     telegram,
+    tgchannel,
     ui,
     web,
     wizard,
@@ -496,6 +497,10 @@ class Menu:
             print(t("sources.synced", new=new))
 
     def add_telegram(self) -> None:
+        print(t("sources.telegram_kind"))
+        if ask_int(t("settings.choose"), 1, 1, 2) == 2:
+            self.add_channels()
+            return
         print(t("sources.telegram_help"))
         raw = ask(f"{t('sources.telegram_path')}: ").strip('"')
         if not raw:
@@ -524,6 +529,42 @@ class Menu:
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
         sid = pipeline.add_telegram_source(self.conn, name, str(path), chosen, folder)
         print(t("sources.added_telegram", name=name))
+        source = db.get_source(self.conn, sid)
+        if source:
+            new, _ = pipeline.sync_source(self.conn, source)
+            print(t("sources.synced", new=new))
+
+    def add_channels(self) -> None:
+        """Публічні канали Telegram за посиланням: перевіряємо, що їх видно без входу, і додаємо одним джерелом."""
+        print(t("sources.channels_help"))
+        channels: list[str] = []
+        titles: list[str] = []
+        for raw in ask_lines():
+            name = tgchannel.channel_name(raw)
+            if not name:
+                print(t("sources.channel_bad", value=raw))
+                continue
+            try:
+                page = tgchannel.fetch_page(name)
+            except tgchannel.ChannelError:
+                print(t("sources.channel_private", name=name))
+                continue
+            if name not in channels:
+                channels.append(name)
+                titles.append(page.title or name)
+                print(t("sources.channel_ok", title=page.title or name, name=name))
+        if not channels:
+            return
+        names = {s["name"] for s in db.list_sources(self.conn)}
+        base = titles[0] if len(titles) == 1 else "Telegram"
+        default = next(n for n in (f"{base} {i}" if i else base for i in range(100)) if n not in names)
+        name = ask(f"{t('sources.name')} [{default}]: ") or default
+        if name in names:
+            print(t("sources.name_taken", name=name))
+            return
+        folder = ask(f"{t('sources.folder')} [{name}]: ") or name
+        sid = pipeline.add_channel_source(self.conn, name, channels, folder)
+        print(t("sources.added_channels", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)

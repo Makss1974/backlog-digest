@@ -2,6 +2,13 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Sources
+- **Public Telegram channels by link** (`t.me/name`, menu → Sources → 5 → 2, `bdig add t.me/name`): read from
+  the public `t.me/s/` page without login or export. New posts are picked up on every update; older posts of a
+  big channel are read in parts (up to 25 pages per update, with pauses).
+
 ## 1.2.0 — Telegram, ask the library, MCP server, a new menu
 
 ### Sources

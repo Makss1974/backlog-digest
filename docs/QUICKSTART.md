@@ -118,9 +118,19 @@ the ones you want (thousands of bookmarks are best taken in parts). You can also
 
 ### Telegram (Saved Messages, channels, groups)
 
+Menu → 2 → **5 Telegram**, then choose one of two ways:
+
+**A public channel — just a link.** Choose **2** and paste `t.me/name` (or `@name`), one per line. Anyone can
+read a public channel without an account, so no export and no sign-in are needed. New posts are picked up by
+themselves on every update (the schedule); a big channel's older posts are read in parts over several updates.
+As a command: `bdig add t.me/name`.
+
+**Saved Messages, your private channels, groups — an export.**
 1. In **Telegram Desktop**: Settings → Advanced → **Export Telegram data** (or in a chat ⋮ → Export chat
-   history). HTML format is fine. Tick files if you want documents and voice messages.
-2. Menu → 2 → **5 Telegram** → the export folder → the numbers of the chats you want (Enter — all).
+   history). HTML format is fine. Tick what you need: **Private channels** for your own note channels,
+   **Public channels**, and files if you want documents and voice messages.
+2. Choose **1** → the export folder → the numbers of the chats you want (Enter — all). A newer export into the
+   same folder adds only what is new.
 
 ## 4. Summaries
 

@@ -16,7 +16,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, telegram, web, whisper, youtube
+from . import (
+    db,
+    folders,
+    keys,
+    library,
+    notes,
+    raindrop,
+    readers,
+    runstate,
+    summarize,
+    telegram,
+    tgchannel,
+    web,
+    whisper,
+    youtube,
+)
 from .i18n import t
 from .llm import Chain, LLMError, LLMResult, QuotaExhausted, short
 from .paths import Paths, get_paths
@@ -62,6 +77,11 @@ def add_web_source(conn: sqlite3.Connection, name: str, urls: list[str], files: 
 def add_raindrop_source(conn: sqlite3.Connection, name: str, collections: list[int], folder: str = "") -> int:
     """collections — id колекцій Raindrop (з вкладеними); порожній список — усі закладки."""
     return db.add_source(conn, RAINDROP, name, {"collections": collections}, folder or name)
+
+
+def add_channel_source(conn: sqlite3.Connection, name: str, channels: list[str], folder: str = "") -> int:
+    """Публічні канали Telegram (імена без @), читаються з t.me/s/ без входу; кожен канал — список."""
+    return db.add_source(conn, TELEGRAM, name, {"channels": channels}, folder or name)
 
 
 def add_telegram_source(conn: sqlite3.Connection, name: str, path: str, chats: list[str] | None = None,
@@ -138,12 +158,15 @@ def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
 def _sync_telegram(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
     """Експорт Telegram читаємо щоразу заново: новіший експорт у ту саму теку додасть лише нове."""
     settings = source["settings"]
-    try:
-        export = telegram.read_export(Path(settings.get("path", "")), settings.get("chats") or None,
-                                      t("telegram.saved"))
-    except telegram.ExportError as e:
-        log(t("telegram.no_export", path=str(e)))
-        return 0
+    if settings.get("channels"):
+        export = _read_channels(conn, source, log)
+    else:
+        try:
+            export = telegram.read_export(Path(settings.get("path", "")), settings.get("chats") or None,
+                                          t("telegram.saved"))
+        except telegram.ExportError as e:
+            log(t("telegram.no_export", path=str(e)))
+            return 0
     new = _add_links(conn, source, export.links, log) if export.links else 0
     added: dict[str, int] = {}
     pos = len(export.links)
@@ -170,6 +193,26 @@ def _sync_telegram(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
     if not (export.links or export.posts or export.files):
         log(t("telegram.empty"))
     return new + sum(added.values())
+
+
+def _read_channels(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> telegram.Export:
+    """Публічні канали з t.me/s/: кожне оновлення — нове й ще частина старого; стан — у налаштуваннях джерела."""
+    settings = source["settings"]
+    states = dict(settings.get("channel_state") or {})
+    chats = []
+    for name in settings["channels"]:
+        log(t("telegram.channel_reading", name=name))
+        try:
+            title, messages, states[name] = tgchannel.fetch(name, states.get(name) or {})
+        except tgchannel.ChannelError as e:
+            log(t("telegram.channel_error", name=name, detail=str(e)))
+            continue
+        more = "" if states[name]["done"] else t("telegram.channel_more")
+        log(t("telegram.channel_read", n=len(messages), more=more))
+        chats.append({"name": title, "id": name, "messages": messages})
+    settings["channel_state"] = states
+    db.update_source(conn, source["id"], settings=settings)
+    return telegram.collect(chats)
 
 
 def _add_links(conn: sqlite3.Connection, source: dict[str, Any], links: list[web.Link], log: Log) -> int:

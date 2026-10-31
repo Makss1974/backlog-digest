@@ -133,6 +133,12 @@ export folder (the one with `export_results.html` or `result.json`). Links, long
 A newer export into the same folder adds only what is new. The program never logs in and changes nothing in
 Telegram.
 
+**And public channels — without an export?**
+Yes: menu → 2 → 5 → 2 and a `t.me/name` link, or `bdig add t.me/name`. A public Telegram channel shows anyone the
+page `t.me/s/name`, and the program reads it — in parts, with pauses (up to 25 pages, ≈500 posts per update), so
+the older posts of a big channel are added over a few days and the new ones daily. Private channels (including
+your own note channels) can't be opened this way — they need an export with "Private channels" ticked.
+
 **How do I remove everything?**
 `bdig autostart off`, then `uv tool uninstall backlog-digest`. Delete settings and the database together with
 the program folder (`bdig doctor` shows where it is); your summaries stay in your folder.

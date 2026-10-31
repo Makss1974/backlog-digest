@@ -242,6 +242,12 @@ def read_export(path: Path, chosen: list[str] | None = None, saved_name: str = "
                 min_post: int = MIN_POST) -> Export:
     """Усе корисне з експорту. chosen — назви чатів (порожньо — усі)."""
     root, chats = _load(path)
+    return collect(chats, root, chosen, saved_name, min_post)
+
+
+def collect(chats: list[dict[str, Any]], root: Path | None = None, chosen: list[str] | None = None,
+            saved_name: str = "Saved Messages", min_post: int = MIN_POST) -> Export:
+    """Посилання, довгі пости й файли з чатів (з експорту або з публічних каналів, tgchannel.py)."""
     out = Export()
     seen_links: set[str] = set()
     for chat in chats:
@@ -262,7 +268,7 @@ def read_export(path: Path, chosen: list[str] | None = None, saved_name: str = "
             if len(text) >= min_post:
                 out.posts.append(Post(f"telegram:{chat.get('id', name)}:{msg.get('id')}", name, title_of(text),
                                       text, str(msg.get("date") or "")[:10]))
-            ref = _file(root, msg, name)
+            ref = _file(root, msg, name) if root else None
             if ref:
                 out.files.append(ref)
     return out

@@ -73,11 +73,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn: Any) -> int:
-    from . import pipeline, telegram, web
+    from . import pipeline, telegram, tgchannel, web
     from .menu import Menu
 
     if args.command == "add" and args.urls[0].lower() == "raindrop":
         return _add_raindrop(conn, paths, args)
+    if args.command == "add" and all(tgchannel.is_channel_link(u) for u in args.urls):
+        return _add_channels(conn, args)
     if args.command == "add" and len(args.urls) == 1 and telegram.is_export(Path(args.urls[0]).expanduser()):
         return _add_telegram(conn, args)
     if args.command == "add":
@@ -156,6 +158,23 @@ def _add_telegram(conn: Any, args: argparse.Namespace) -> int:
         return 2
     sid = pipeline.add_telegram_source(conn, name, str(path), args.only or [], args.folder or name)
     print(t("sources.added_telegram", name=name))
+    source = db.get_source(conn, sid)
+    if source and not args.no_sync:
+        print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))
+    return 0
+
+
+def _add_channels(conn: Any, args: argparse.Namespace) -> int:
+    """bdig add t.me/канал [t.me/інший ...] — публічні канали Telegram, без входу; оновлюються самі."""
+    from . import pipeline, tgchannel
+
+    channels = list(dict.fromkeys(n for n in (tgchannel.channel_name(u) for u in args.urls) if n))
+    name = args.name or (channels[0] if len(channels) == 1 else "Telegram")
+    if any(s["name"] == name for s in db.list_sources(conn)):
+        print(t("sources.name_taken", name=name), file=sys.stderr)
+        return 2
+    sid = pipeline.add_channel_source(conn, name, channels, args.folder or name)
+    print(t("sources.added_channels", name=name))
     source = db.get_source(conn, sid)
     if source and not args.no_sync:
         print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))

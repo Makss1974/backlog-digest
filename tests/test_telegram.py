@@ -117,7 +117,7 @@ def test_menu_add_telegram(tmp_path, paths, monkeypatch):
     from backlog_digest import config, menu
 
     root = write_export(tmp_path / "Export")
-    answers = iter([str(root), "2", "", ""])
+    answers = iter(["1", str(root), "2", "", ""])
     monkeypatch.setattr(menu, "ask", lambda prompt="": next(answers))
     conn = db.connect(paths.db_file)
     m = menu.Menu(paths, config.defaults(), conn)
