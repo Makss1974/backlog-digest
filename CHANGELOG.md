@@ -5,7 +5,7 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 ## Unreleased
 
 ### Sources
-- **Telegram** without logging in: an export from Telegram Desktop (JSON) — Saved Messages, channels, groups.
+- **Telegram** without logging in: an export from Telegram Desktop (HTML or JSON) — Saved Messages, channels, groups.
   YouTube links become videos, other links become articles, posts of 800+ characters become texts, documents,
   audio and voice messages are taken when the export includes files. Each chat is a list; `bdig add <export
   folder> --only <chat>` or menu → Sources → 5.

@@ -61,7 +61,7 @@ Then, per list:
 | **Folders** of books and documents (also Google Drive / OneDrive / Dropbox folders) | PDF, EPUB, FB2, DOCX, ODT, RTF, HTML, TXT, MD; DJVU with DjVuLibre; MOBI, AZW3, DOC with Calibre; audio and video files with optional Whisper |
 | **Web articles** — links, browser bookmarks (HTML export), Pocket, Instapaper, CSV | Main text only (no menus, ads, comments) |
 | **Raindrop.io** bookmarks | Collections become lists; read-only |
-| **Telegram** — Saved Messages, channels, groups | An export from Telegram Desktop (JSON), no login: links, long posts, documents, audio and voice messages; chats become lists |
+| **Telegram** — Saved Messages, channels, groups | An export from Telegram Desktop (HTML or JSON), no login: links, long posts, documents, audio and voice messages; chats become lists |
 
 Long books are read in parts and continue after a stop. The same video or book in several lists is summarized
 once. YouTube links inside bookmarks become videos, PDF links become books.

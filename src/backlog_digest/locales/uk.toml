@@ -174,7 +174,7 @@ add_raindrop = "Додати закладки з Raindrop.io"
 added_raindrop = "Додано джерело «{name}». Збираю закладки..."
 type_telegram = "Telegram"
 add_telegram = "Додати Telegram: експорт із Telegram Desktop (без входу)"
-telegram_help = "У Telegram Desktop: Налаштування → Розширені → Експорт даних Telegram (або в чаті: ⋮ → Експорт історії чату), формат JSON.\nПозначте файли, якщо потрібні й документи, аудіо та голосові. Потім вкажіть теку експорту (де лежить result.json)."
+telegram_help = "У Telegram Desktop: Налаштування → Розширені → Експорт даних Telegram (або в чаті: ⋮ → Експорт історії чату), формат HTML або JSON.\nПозначте файли, якщо потрібні й документи, аудіо та голосові. Потім вкажіть теку експорту (де лежить export_results.html чи result.json)."
 telegram_path = "Повний шлях до теки експорту"
 added_telegram = "Джерело «{name}» додано. Читаю експорт..."
 
@@ -369,7 +369,7 @@ audio_error = "не вдалося завантажити звук відео: {
 
 [telegram]
 saved = "Збережене"
-no_export = "  ✗ тут немає експорту Telegram (потрібен result.json у форматі JSON): {path}"
+no_export = "  ✗ тут немає експорту Telegram (потрібен export_results.html, messages.html чи result.json): {path}"
 posts_files = "  довгих постів: {posts}, файлів: {files} (нових: {new})"
 empty = "  в експорті немає нічого корисного: ні посилань, ні довгих постів, ні файлів"
 post_missing = "немає тексту поста — оновіть списки джерела"

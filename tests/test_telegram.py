@@ -138,3 +138,58 @@ def test_video_link_without_title_gets_it_from_oembed(env, tmp_path, monkeypatch
     row = env.conn.execute("SELECT * FROM items WHERE source_id=?", (sid,)).fetchone()
     assert (row["title"], row["author"], row["status"]) == ("Real title", "Real channel", db.DONE)
     assert (env.root / "TG" / "Science news" / "Real title.md").exists()
+
+
+def html_message(i, body, date="05.10.2026 10:00:00 UTC+01:00", joined=False):
+    return f"""
+ <div class="message default clearfix{' joined' if joined else ''}" id="message{i}">
+  <div class="pull_left userpic_wrap"><div class="userpic"></div></div>
+  <div class="body">
+   <div class="pull_right date details" title="{date}">10:00</div>
+   <div class="from_name">Me</div>
+   {body}
+  </div>
+ </div>"""
+
+
+def write_html_export(root):
+    chat = root / "chats" / "chat_002"
+    (chat / "files").mkdir(parents=True)
+    samples.pdf(chat / "files" / "paper.pdf", [samples.PARA])
+    long_html = LONG.replace(". ", ".<br>", 1)
+    page1 = f"""<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Exported Data</title></head><body>
+<div class="page_wrap"><div class="page_header"><div class="content"><div class="text bold">
+ Science news
+</div></div></div><div class="page_body chat_page"><div class="history">
+ <div class="message service" id="message-1"><div class="body details">5 October 2026</div></div>
+{html_message(1, '<div class="text">look <a href="https://www.youtube.com/watch?v=vid00000001">'
+                 'https://www.youtube.com/watch?v=vid00000001</a> later</div>')}
+{html_message(2, '<div class="forwarded body"><div class="from_name">Other</div>'
+                 '<div class="text">an <a href="https://example.com/a">article</a></div></div>', joined=True)}
+{html_message(3, f'<div class="text">{long_html}</div>', date="06.10.2026 09:30:00 UTC+01:00")}
+</div></div></div></body></html>"""
+    page2 = f"""<html><body><div class="page_header"><div class="text bold">Science news</div></div>
+{html_message(4, '<div class="media_wrap clearfix"><a class="media clearfix pull_left block_link media_file" '
+                 'href="files/paper.pdf"><div class="body"><div class="title bold">paper.pdf</div></div></a></div>')}
+{html_message(5, '<div class="media_wrap clearfix"><div class="media clearfix pull_left media_voice_message">'
+                 '<div class="body"><div class="status details">Not included</div></div></div></div>')}
+</body></html>"""
+    (chat / "messages.html").write_text(page1, encoding="utf-8")
+    (chat / "messages2.html").write_text(page2, encoding="utf-8")
+    (root / "export_results.html").write_text("<html></html>", encoding="utf-8")
+    return root
+
+
+def test_read_html_export(tmp_path):
+    root = write_html_export(tmp_path / "DataExport")
+    assert telegram.is_export(root) and telegram.is_export(root / "chats" / "chat_002")
+    ex = telegram.read_export(root)
+    assert [(c.name, c.messages) for c in ex.chats] == [("Science news", 5)]
+    assert [(lk.url, lk.list_name) for lk in ex.links] == [
+        ("https://www.youtube.com/watch?v=vid00000001", "Science news"), ("https://example.com/a", "Science news")]
+    [post] = ex.posts
+    assert (post.key, post.date) == ("telegram:chat_002:3", "2026-10-06")
+    assert post.text.startswith("Why sleep matters.\nSleep consolidates")
+    assert [f.path for f in ex.files] == [root / "chats" / "chat_002" / "files" / "paper.pdf"]
+    single = telegram.read_export(root / "chats" / "chat_002")
+    assert len(single.links) == 2 and len(single.files) == 1

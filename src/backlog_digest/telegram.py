@@ -1,5 +1,5 @@
 """Telegram без входу: імпорт експорту Telegram Desktop (Налаштування → Розширені → Експорт даних Telegram,
-або в чаті ⋮ → Експорт історії чату; формат — JSON).
+або в чаті ⋮ → Експорт історії чату). Формат — JSON або HTML (його Telegram пропонує за замовчуванням).
 
 З експорту беремо: посилання на YouTube (стають відео) і на статті, довгі пости (стають текстами),
 документи й книги, а також аудіо, відео й голосові (їх розпізнає Whisper), якщо файли є в експорті.
@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +25,7 @@ _SKIP_HOSTS = ("t.me", "telegram.me", "telegram.org", "telegra.ph")   # поси
 
 
 class ExportError(Exception):
-    """Не знайдено чи не вдалося прочитати result.json."""
+    """Не знайдено чи не вдалося прочитати експорт (result.json або messages.html)."""
 
 
 @dataclass
@@ -65,14 +67,29 @@ def find_result(path: Path) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def _html_chat_dirs(path: Path) -> list[Path]:
+    """Теки чатів HTML-експорту: увесь обліковий запис (chats/chat_N/) або один чат (messages.html поруч)."""
+    if not path.is_dir():
+        return []
+    if (path / "messages.html").is_file():
+        return [path]
+    if (path / "export_results.html").is_file() and (path / "chats").is_dir():
+        return sorted((d for d in (path / "chats").iterdir() if (d / "messages.html").is_file()),
+                      key=lambda d: _number(d.name))
+    return []
+
+
 def is_export(path: Path) -> bool:
-    return find_result(path) is not None
+    return find_result(path) is not None or bool(_html_chat_dirs(path))
 
 
 def _load(path: Path) -> tuple[Path, list[dict[str, Any]]]:
     result = find_result(path)
     if result is None:
-        raise ExportError(str(path))
+        dirs = _html_chat_dirs(path)
+        if not dirs:
+            raise ExportError(str(path))
+        return path, [_html_chat(d, path) for d in dirs]
     try:
         data = json.loads(result.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as e:
@@ -85,6 +102,113 @@ def _load(path: Path) -> tuple[Path, list[dict[str, Any]]]:
     else:
         raise ExportError(f"{result}: no chats")
     return result.parent, [c for c in chats if isinstance(c, dict)]
+
+
+# ---------------------------------------------------------------- HTML-експорт
+
+def _number(name: str) -> int:
+    m = re.search(r"(\d+)", name)
+    return int(m.group(1)) if m else 0
+
+
+def _html_chat(folder: Path, root: Path) -> dict[str, Any]:
+    """Чат HTML-експорту в тому самому вигляді, що й у JSON: назва, id і повідомлення."""
+    pages = sorted(folder.glob("messages*.html"), key=lambda p: _number(p.stem))   # messages, messages2, ...
+    parser = _ChatPage(folder.relative_to(root).as_posix() if folder != root else "")
+    for page in pages:
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as e:
+            raise ExportError(f"{page}: {str(e)[:200]}") from e
+        parser.close()
+        parser.reset()
+    return {"name": parser.title or folder.name, "id": folder.name if folder != root else "chat",
+            "type": "html", "messages": parser.messages}
+
+
+_FILE_MEDIA = {"media_file": "file", "media_audio_file": "audio_file", "media_voice_message": "voice_message",
+               "media_video": "video_file"}
+
+
+class _ChatPage(HTMLParser):
+    """Сторінка messages.html: div.message.default — повідомлення, div.text — його текст із посиланнями,
+    a.media_file / media_voice_message ... — файл (лише якщо його експортовано), title дати — час."""
+
+    def __init__(self, prefix: str) -> None:
+        super().__init__()
+        self.prefix = prefix + "/" if prefix else ""
+        self.title = ""
+        self.messages: list[dict[str, Any]] = []
+        self._depth = 0
+        self._msg: dict[str, Any] | None = None
+        self._msg_depth = self._text_depth = self._title_depth = -1
+        self._link: dict[str, Any] | None = None
+        self._title_done = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = {k: v or "" for k, v in attrs}
+        classes = set(a.get("class", "").split())
+        if tag == "br":
+            self._data("\n")
+            return
+        if tag in ("img", "hr", "meta", "link", "input"):
+            return
+        self._depth += 1
+        if tag == "div" and "page_header" in classes:
+            self._title_depth = self._depth
+        elif tag == "div" and {"message", "default"} <= classes:
+            self._msg = {"id": a.get("id", "").removeprefix("message"), "type": "message", "text_entities": []}
+            self._msg_depth = self._depth
+        elif self._msg is None:
+            return
+        elif tag == "div" and {"date", "details"} <= classes and "date" not in self._msg:
+            self._msg["date"] = _html_date(a.get("title", ""))
+        elif tag == "div" and classes == {"text"}:
+            self._text_depth = self._depth
+        elif tag == "a" and self._text_depth >= 0 and re.match(r"^https?://", a.get("href", ""), re.I):
+            self._link = {"type": "text_link", "text": "", "href": a["href"]}
+        elif tag == "a" and classes & set(_FILE_MEDIA) and a.get("href"):
+            self._msg["file"] = self.prefix + a["href"]
+            self._msg["media_type"] = _FILE_MEDIA[next(iter(classes & set(_FILE_MEDIA)))]
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("br", "img", "hr", "meta", "link", "input"):
+            return
+        if tag == "a" and self._link is not None and self._msg is not None:
+            self._msg["text_entities"].append(self._link)
+            self._link = None
+        if self._depth == self._text_depth:
+            self._text_depth = -1
+        if self._depth == self._title_depth:   # заголовок повторюється на кожній сторінці — беремо перший
+            self._title_depth = -1
+            self._title_done = bool(self.title)
+        if self._depth == self._msg_depth and self._msg is not None:
+            self.messages.append(self._msg)
+            self._msg, self._msg_depth = None, -1
+        self._depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._title_depth >= 0:
+            if data.strip() and not self._title_done:
+                self.title = (self.title + " " + data.strip()).strip()
+        else:
+            self._data(data)
+
+    def _data(self, data: str) -> None:
+        if self._msg is None or self._text_depth < 0:
+            return
+        if self._link is not None:
+            self._link["text"] += data
+        else:
+            self._msg["text_entities"].append({"type": "plain", "text": data})
+
+
+def _html_date(title: str) -> str:
+    """«14.03.2023 17:38:19 GMT+01:00» -> «2023-03-14T17:38:19»."""
+    try:
+        return datetime.strptime(title[:19], "%d.%m.%Y %H:%M:%S").isoformat()
+    except ValueError:
+        return ""
 
 
 def chat_name(chat: dict[str, Any], saved_name: str) -> str:

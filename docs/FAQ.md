@@ -128,8 +128,8 @@ vault and the files in the `logs` folder of the program folder.
 
 **How do I add Telegram?**
 Without logging in: in Telegram Desktop, Settings → Advanced → Export Telegram data (or in a chat: ⋮ → Export
-chat history), format JSON; tick files if you want documents and voice messages. Then menu → 2 → 5 and the
-export folder (the one with `result.json`). Links, long posts and files become items; each chat is a list.
+chat history), format HTML (the default) or JSON; tick files if you want documents and voice messages. Then menu → 2 → 5 and the
+export folder (the one with `export_results.html` or `result.json`). Links, long posts and files become items; each chat is a list.
 A newer export into the same folder adds only what is new. The program never logs in and changes nothing in
 Telegram.
 

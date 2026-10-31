@@ -174,7 +174,7 @@ add_raindrop = "Ajouter des favoris depuis Raindrop.io"
 added_raindrop = "Source « {name} » ajoutée. Récupération des favoris..."
 type_telegram = "Telegram"
 add_telegram = "Ajouter Telegram : un export de Telegram Desktop (sans connexion)"
-telegram_help = "Dans Telegram Desktop : Paramètres → Avancé → Exporter les données Telegram (ou dans un chat : ⋮ → Exporter l'historique), format JSON.\nCochez les fichiers si vous voulez aussi les documents, l'audio et les messages vocaux. Indiquez ensuite le dossier de l'export (celui de result.json)."
+telegram_help = "Dans Telegram Desktop : Paramètres → Avancé → Exporter les données Telegram (ou dans un chat : ⋮ → Exporter l'historique), format HTML ou JSON.\nCochez les fichiers si vous voulez aussi les documents, l'audio et les messages vocaux. Indiquez ensuite le dossier de l'export (celui de export_results.html ou result.json)."
 telegram_path = "Chemin complet du dossier de l'export"
 added_telegram = "Source « {name} » ajoutée. Lecture de l'export..."
 
@@ -369,7 +369,7 @@ audio_error = "impossible de télécharger le son de la vidéo : {detail}"
 
 [telegram]
 saved = "Messages enregistrés"
-no_export = "  ✗ pas d'export Telegram ici (il faut result.json au format JSON) : {path}"
+no_export = "  ✗ pas d'export Telegram ici (il faut export_results.html, messages.html ou result.json) : {path}"
 posts_files = "  longs messages : {posts}, fichiers : {files} (nouveaux : {new})"
 empty = "  rien d'utile dans l'export : ni liens, ni longs messages, ni fichiers"
 post_missing = "le texte du message manque — mettez à jour les listes de la source"
