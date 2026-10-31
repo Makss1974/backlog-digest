@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.3.0 — cloud mode, public Telegram channels
 
 ### Cloud mode (optional)
 - **`bdig cloud init FOLDER`** (menu → Schedule → 6): a folder that becomes your private GitHub repository —

@@ -12,7 +12,7 @@ Obsidian vault, a plain Markdown folder or Raindrop.io. It runs on your computer
 through thousands of items a little every day, and never loses progress.
 
 ```text
-╭─ 📚 backlog-digest 1.2.0 ────────────────────────────────────────────────────────────────────────╮
+╭─ 📚 backlog-digest 1.3.0 ────────────────────────────────────────────────────────────────────────╮
 │ 📦 16 of 84 done, 66 in queue                                                                    │
 │ 🕒 waiting for subtitles: 44 (0 of 30 collected today) · ready to summarize: 22 · no text: 2     │
 │ 📥 Sources: 2 (YouTube 1, Raindrop 1)                                                            │
