@@ -27,6 +27,7 @@ LABEL_KEYS = [
     "other_topic", "index", "best", "by_topic", "all_by_score", "similar", "similar_hint", "off_topic",
     "unscientific", "problems", "col_title", "col_details", "stat_done", "stat_of", "stat_queued",
     "stat_no_text", "stat_updated", "status_failed", "status_error", "status_no_text",
+    "journal", "col_when", "col_job", "col_result",
 ]
 
 # Символи, заборонені в іменах файлів Windows, і ті, що ламають [[посилання]] в Obsidian

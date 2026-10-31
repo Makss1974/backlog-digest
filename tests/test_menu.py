@@ -42,13 +42,13 @@ def make_menu(paths):
 @pytest.mark.parametrize("lang", i18n.UI_LANGUAGES)
 def test_menu_in_every_language(make_menu, monkeypatch, capsys, lang):
     monkeypatch.setattr(doctor, "run", lambda paths, network=True: print("DOCTOR-RAN"))
-    feed(monkeypatch, ["1", "", "2", "0", "", "4", "", "6", "", "7", "", "42", "q"])
+    feed(monkeypatch, ["1", "", "2", "0", "", "4", "", "6", "0", "", "7", "", "42", "q"])
     make_menu(lang).run()
     out = capsys.readouterr().out
     for key in ("menu.stats", "menu.settings", "menu.quit", "menu.queue_empty", "stats.no_sources",
                 "status.no_text", "menu.no_such_item", "sources.none", "sources.add_youtube"):
         assert i18n.t(key) in out, key
-    assert i18n.t("menu.coming_soon", stage=5) in out and i18n.t("sort.no_lists") in out
+    assert i18n.t("schedule.no_jobs") in out and i18n.t("sort.no_lists") in out
     assert "DOCTOR-RAN" in out
     assert not re.search(r"\b(menu|stats|status|settings|sources|process)\.[a-z_]+", out), "untranslated key"
 

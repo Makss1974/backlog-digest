@@ -11,7 +11,22 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, config, db, doctor, i18n, keys, llm, pipeline, raindrop, runstate, shortcut, web
+from . import (
+    __version__,
+    autostart,
+    config,
+    db,
+    doctor,
+    i18n,
+    keys,
+    llm,
+    pipeline,
+    raindrop,
+    runstate,
+    schedule,
+    shortcut,
+    web,
+)
 from .i18n import t
 from .paths import Paths
 
@@ -24,6 +39,7 @@ class Menu:
         self.paths = paths
         self.cfg = cfg
         self.conn = conn
+        self._autostart: bool | None = None    # перевірка планувальника повільна — пам'ятаємо
 
     def items(self) -> list[tuple[str, str, Callable[[], None]]]:
         """Пункти меню: (клавіша, назва, дія). Будуються щоразу — назви залежать від мови."""
@@ -33,7 +49,7 @@ class Menu:
             ("3", t("menu.summaries"), self.process),
             ("4", t("menu.sorting"), self.sort),
             ("5", t("menu.raindrop"), self.export_raindrop),
-            ("6", t("menu.schedule"), soon(5)),
+            ("6", t("menu.schedule"), self.schedule_menu),
             ("7", t("menu.doctor"), self.run_doctor),
             ("8", t("menu.settings"), self.settings),
         ]
@@ -103,6 +119,9 @@ class Menu:
         else:
             lines.append(t("panel.models", active=len(models) - len(used), total=len(models))
                          + (" · " + t("panel.exhausted", names=", ".join(used)) if used else ""))
+        jobs = [j for j in schedule.list_jobs(self.conn) if j["enabled"]]
+        if jobs:
+            lines.append(t("panel.schedule", n=len(jobs), auto="✅" if self.autostart_on() else "❌"))
         running = runstate.current(self.paths)
         if running:
             lines.append(t("panel.running", stage=t(f"panel.stage_{running.get('stage', 'all')}"),
@@ -186,6 +205,111 @@ class Menu:
             return
         print(t("export.done", created=stats.created, updated=stats.updated, unchanged=stats.unchanged,
                 collections=stats.collections))
+
+    # ------------------------------------------------------------ розклад
+
+    def autostart_on(self) -> bool:
+        if self._autostart is None:
+            self._autostart = autostart.installed()
+        return self._autostart
+
+    def schedule_menu(self) -> None:
+        while True:
+            jobs = schedule.list_jobs(self.conn)
+            print(t("schedule.title"))
+            if not jobs:
+                print(f"  {t('schedule.no_jobs')}")
+            for j in jobs:
+                when = (j["last_run"] or "")[:16].replace("T", " ")
+                last = f"\n       {t('schedule.last', when=when, result=j['last_result'])}" if when else ""
+                print(f"  {j['id']:>3}. {schedule.describe(self.conn, j)}{last}")
+            auto = t("schedule.autostart_yes") if self.autostart_on() else t("schedule.autostart_no")
+            print(f"\n  {auto}\n")
+            print(f"  1. {t('schedule.add')}")
+            if jobs:
+                print(f"  2. {t('schedule.toggle')}")
+                print(f"  3. {t('schedule.delete')}")
+                print(f"  4. {t('schedule.run_now')}")
+            toggle = t("schedule.autostart_off_item") if self.autostart_on() else t("schedule.autostart_on_item")
+            print(f"  5. {toggle}")
+            print(f"  0. {t('menu.back')}")
+            choice = ask_int(t("settings.choose"), 0, 0, 5)
+            if choice == 0:
+                return
+            if choice == 1:
+                self.add_job()
+            elif choice == 5:
+                self.toggle_autostart()
+            elif jobs and choice in (2, 3, 4):
+                ids = {j["id"]: j for j in jobs}
+                raw = ask(f"{t('schedule.job_numbers')} ")
+                picked = [int(x) for x in raw.replace(",", " ").split() if x.isdigit() and int(x) in ids]
+                if choice == 4 and not raw:
+                    picked = list(ids)
+                if not picked:
+                    print(t("raindrop.bad_choice"))
+                    continue
+                for job_id in picked:
+                    if choice == 2:
+                        schedule.update_job(self.conn, job_id, enabled=0 if ids[job_id]["enabled"] else 1)
+                    elif choice == 3:
+                        schedule.delete_job(self.conn, job_id)
+                if choice == 4:
+                    schedule.run_due(self.conn, self.cfg, self.paths, only=picked)
+
+    def add_job(self) -> None:
+        sources = db.list_sources(self.conn)
+        if not sources:
+            print(t("stats.no_sources"))
+            return
+        print(t("schedule.pick_source"))
+        for i, s in enumerate(sources, 1):
+            print(f"  {i:>3}. {s['name']}")
+        n = ask_int(t("settings.choose"), 0, 0, len(sources))
+        source = sources[n - 1] if n else None
+        list_name: str | None = None
+        if source:
+            names = [r[0] for r in self.conn.execute(
+                "SELECT DISTINCT list_name FROM items WHERE source_id=? ORDER BY list_name", (source["id"],))]
+            if len(names) > 1:
+                print(t("schedule.pick_list"))
+                for i, name in enumerate(names[:60], 1):
+                    print(f"  {i:>3}. {name or '—'}")
+                k = ask_int(t("settings.choose"), 0, 0, min(len(names), 60))
+                list_name = names[k - 1] if k else None
+        lim = ask_int(t("schedule.limit"), int(self.cfg["limits"]["per_run"]), 1, 10000)
+        steps = {"sync": True, "process": True,
+                 "report": ask_yes(t("schedule.ask_report")),
+                 "raindrop": bool(keys.get_secret(raindrop.TOKEN, self.paths)) and ask_yes(t("schedule.ask_raindrop"))}
+        print(f"  1. {t('schedule.daily')}\n  2. {t('schedule.weekly', day=t('schedule.choose_day'))}")
+        frequency = "daily"
+        if ask_int(t("settings.choose"), 1, 1, 2) == 2:
+            for d in range(7):
+                print(f"  {d + 1}. {t(f'schedule.day_{d}')}")
+            frequency = f"weekly:{ask_int(t('settings.choose'), 1, 1, 7) - 1}"
+        while True:
+            at_time = schedule.parse_time(ask(f"{t('schedule.time')} [09:00]: ") or "09:00")
+            if at_time:
+                break
+            print(t("schedule.bad_time"))
+        name = (source["name"] if source else t("schedule.all_sources")) + (f" / {list_name}" if list_name else "")
+        schedule.add_job(self.conn, name, source_id=source["id"] if source else None, list_name=list_name, lim=lim,
+                         steps=steps, frequency=frequency, at_time=at_time)
+        print(t("schedule.added", name=name))
+        if not self.autostart_on() and ask_yes(t("schedule.ask_autostart")):
+            self.toggle_autostart()
+
+    def toggle_autostart(self) -> None:
+        try:
+            if self.autostart_on():
+                autostart.remove()
+                print(t("schedule.autostart_off"))
+            else:
+                where = autostart.install(self.paths.data_dir / "logs" / "autostart.log")
+                print(t("schedule.autostart_on", where=where))
+        except autostart.AutostartError as e:
+            print(t("schedule.autostart_failed", detail=str(e)))
+        self._autostart = None
 
     def run_doctor(self) -> None:
         doctor.run(self.paths)
@@ -580,10 +704,6 @@ def print_columns(cells: list[str], columns: int = 3) -> None:
     for r in range(rows):
         line = "".join(cells[i].ljust(width) for i in range(r, len(cells), rows))
         print(f"  {line.rstrip()}")
-
-
-def soon(stage: int) -> Callable[[], None]:
-    return lambda: print(t("menu.coming_soon", stage=stage))
 
 
 # ---------------------------------------------------------------- введення

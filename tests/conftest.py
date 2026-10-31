@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
-from backlog_digest import i18n, keys
+from backlog_digest import autostart, i18n, keys
 from backlog_digest.paths import HOME_ENV, get_paths
 
 
@@ -15,6 +17,8 @@ def isolated(tmp_path, monkeypatch):
     for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr(i18n, "detect_language", lambda: "en")
+    # системний планувальник у тестах не чіпаємо: кожна команда «не вдалася»
+    monkeypatch.setattr(autostart, "_run", lambda args, stdin=None: subprocess.CompletedProcess(args, 1, "", ""))
     i18n.set_language("en")
     yield
     i18n.set_language("en")

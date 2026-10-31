@@ -1,15 +1,16 @@
-"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es]
-[menu | doctor | add | sync | process | fetch | summarize | shortcut]."""
+"""Точка входу: backlog-digest / bdig [--lang uk|en|fr|es] [--home ТЕКА]
+[menu | doctor | add | sync | process | fetch | summarize | export | shortcut | run-jobs | autostart]."""
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 from . import __version__, config, db, doctor, i18n
 from .i18n import t
-from .paths import get_paths
+from .paths import HOME_ENV, get_paths
 
 # команда → крок обробки: process — обидва кроки, fetch — лише тексти, summarize — лише конспекти
 STAGES = {"process": db.ALL, "fetch": db.FETCH, "summarize": db.SUMMARIZE}
@@ -18,6 +19,9 @@ STAGES = {"process": db.ALL, "fetch": db.FETCH, "summarize": db.SUMMARIZE}
 def main(argv: list[str] | None = None) -> int:
     _setup_console()
     argv = sys.argv[1:] if argv is None else argv
+    home = _option_from_argv(argv, "--home")
+    if home:   # так розклад передає теку програми: у системних завданнях змінні середовища не задати
+        os.environ[HOME_ENV] = home
     paths = get_paths()
 
     # Мову треба знати ще до розбору аргументів: від неї залежать тексти довідки.
@@ -101,6 +105,13 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         return 0
     if args.command == "export":
         return _export(conn, paths, cfg, args)
+    if args.command == "run-jobs":
+        from . import schedule
+
+        schedule.run_due(conn, cfg, paths, force=args.force, only=args.job or None)
+        return 0
+    if args.command == "autostart":
+        return _autostart(paths, args.action)
     if args.command in STAGES:
         limit = args.limit or cfg["limits"]["per_run"]
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
@@ -164,10 +175,28 @@ def _export(conn: Any, paths: Any, cfg: dict[str, Any], args: argparse.Namespace
     return 0
 
 
+def _autostart(paths: Any, action: str) -> int:
+    from . import autostart
+
+    try:
+        if action == "on":
+            print(t("schedule.autostart_on", where=autostart.install(paths.data_dir / "logs" / "autostart.log")))
+        elif action == "off":
+            autostart.remove()
+            print(t("schedule.autostart_off"))
+        else:
+            print(t("schedule.autostart_yes") if autostart.installed() else t("schedule.autostart_no"))
+    except autostart.AutostartError as e:
+        print(t("schedule.autostart_failed", detail=str(e)), file=sys.stderr)
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="backlog-digest", description=t("cli.description"))
     parser.add_argument("--version", action="version", version=f"backlog-digest {__version__}")
     parser.add_argument("--lang", choices=i18n.UI_LANGUAGES, help=t("cli.help_lang"))
+    parser.add_argument("--home", metavar="DIR", help=t("cli.help_home"))
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
     sub.add_parser("menu", help=t("cli.help_menu"))
     p = sub.add_parser("doctor", help=t("cli.help_doctor"))
@@ -182,11 +211,25 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("export", help=t("cli.help_export"))
     p.add_argument("--root", metavar="NAME", help=t("cli.help_root"))
     sub.add_parser("shortcut", help=t("cli.help_shortcut"))
+    p = sub.add_parser("run-jobs", help=t("cli.help_run_jobs"))
+    p.add_argument("--force", action="store_true", help=t("cli.help_force"))
+    p.add_argument("--job", type=int, action="append", default=[], metavar="ID", help=t("cli.help_job"))
+    p = sub.add_parser("autostart", help=t("cli.help_autostart"))
+    p.add_argument("action", choices=("on", "off", "status"))
     for command in STAGES:
         p = sub.add_parser(command, help=t(f"cli.help_{command}"))
         p.add_argument("--limit", type=int, help=t("cli.help_limit"))
         p.add_argument("--source", type=int, metavar="ID", help=t("cli.help_source"))
     return parser
+
+
+def _option_from_argv(argv: list[str], name: str) -> str | None:
+    for i, a in enumerate(argv):
+        if a.startswith(f"{name}="):
+            return a.split("=", 1)[1]
+        if a == name and i + 1 < len(argv):
+            return argv[i + 1]
+    return None
 
 
 def _lang_from_argv(argv: list[str]) -> str | None:

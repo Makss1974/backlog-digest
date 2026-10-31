@@ -15,6 +15,7 @@ from typing import Any
 from .paths import Paths
 
 FILE = "running.json"
+_depth = 0      # вкладені start/finish (розклад → обробка): позначку прибирає лише останній finish
 
 
 def _file(paths: Paths) -> Path:
@@ -22,6 +23,8 @@ def _file(paths: Paths) -> Path:
 
 
 def start(paths: Paths, stage: str, started: str) -> None:
+    global _depth
+    _depth += 1
     try:
         _file(paths).parent.mkdir(parents=True, exist_ok=True)
         _file(paths).write_text(json.dumps({"pid": os.getpid(), "started": started, "stage": stage}),
@@ -31,6 +34,10 @@ def start(paths: Paths, stage: str, started: str) -> None:
 
 
 def finish(paths: Paths) -> None:
+    global _depth
+    _depth = max(_depth - 1, 0)
+    if _depth:
+        return
     state = _read(paths)
     if state and state.get("pid") == os.getpid():
         with contextlib.suppress(OSError):

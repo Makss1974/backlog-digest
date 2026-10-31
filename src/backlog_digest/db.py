@@ -144,6 +144,22 @@ MIGRATIONS: list[str] = [
         exported_at   TEXT NOT NULL
     );
     """,
+    # 7 — завдання за розкладом
+    """
+    CREATE TABLE jobs (
+        id          INTEGER PRIMARY KEY,
+        name        TEXT NOT NULL,
+        source_id   INTEGER REFERENCES sources(id) ON DELETE CASCADE,   -- NULL — усі джерела
+        list_name   TEXT,                         -- NULL — усі списки
+        lim         INTEGER NOT NULL,             -- скільки елементів за запуск
+        steps       TEXT NOT NULL,                -- json: {"sync": true, "process": true, "report": .., "raindrop": ..}
+        frequency   TEXT NOT NULL DEFAULT 'daily',   -- daily / weekly:0..6 (0 — понеділок)
+        at_time     TEXT NOT NULL DEFAULT '09:00',   -- не раніше ГГ:ХХ
+        enabled     INTEGER NOT NULL DEFAULT 1,
+        last_run    TEXT,
+        last_result TEXT
+    );
+    """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 

@@ -233,10 +233,11 @@ class Processor:
 
     # -- головний цикл
 
-    def run(self, limit: int, source_id: int | None = None, stage: str = ALL) -> RunStats:
+    def run(self, limit: int, source_id: int | None = None, stage: str = ALL,
+            list_name: str | None = None) -> RunStats:
         runstate.start(self.paths, stage, db.now())   # меню в іншому вікні побачить, що обробка йде
         try:
-            stats = self._run(limit, source_id, stage)
+            stats = self._run(limit, source_id, stage, list_name)
             if stats.done and self._summarizing:
                 self._assign_new()
             self._update_indexes()
@@ -272,7 +273,7 @@ class Processor:
         if n:
             self.log(t("sort.assigned", n=n))
 
-    def _run(self, limit: int, source_id: int | None, stage: str) -> RunStats:
+    def _run(self, limit: int, source_id: int | None, stage: str, list_name: str | None = None) -> RunStats:
         """Обробка черги. stage: fetch — лише зібрати тексти (повільно, з вашої IP, моделі не потрібні);
         summarize — лише конспекти з уже зібраного (YouTube не потрібен); all — обидва кроки поспіль.
         У режимі all блокування YouTube не зупиняє конспекти з уже зібраного, а вичерпані моделі — збір."""
@@ -290,7 +291,7 @@ class Processor:
             self._fetching = False
             stage = SUMMARIZE
         rows = db.pending(self.conn, min(limit, self._fetch_left) if stage == FETCH else limit, source_id,
-                          newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
+                          list_name, newest_first=bool(self.cfg["youtube"]["newest_first"]), stage=stage,
                           language=self.language)
         if not rows:
             self.log(t("process.nothing"))
