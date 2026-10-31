@@ -92,7 +92,7 @@ def list_url(url: str, cookies_file: str | None = None) -> Listing:
     """Список відео за посиланням: плейлист, канал або окреме відео."""
     vid = video_id(url)
     if vid:
-        return Listing("", [_single_video(vid)])
+        return Listing("", [video_info(vid)])
     return _flat_playlist(normalize_list_url(url), cookies_file)
 
 
@@ -134,7 +134,7 @@ def _flat_playlist(url: str, cookies_file: str | None) -> Listing:
     return Listing(title, entries)
 
 
-def _single_video(vid: str) -> Entry:
+def video_info(vid: str) -> Entry:
     """Назва й канал окремого відео через oEmbed (легкий запит, без субтитрів і без ключів)."""
     url = "https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote(WATCH_URL.format(vid))
     try:

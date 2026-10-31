@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, web, whisper, youtube
+from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, telegram, web, whisper, youtube
 from .i18n import t
 from .llm import Chain, LLMError, LLMResult, QuotaExhausted, short
 from .paths import Paths, get_paths
@@ -27,7 +27,8 @@ YOUTUBE = "youtube"
 FOLDER = "folder"
 WEB = "web"
 RAINDROP = "raindrop"
-SOURCE_TYPES = (YOUTUBE, FOLDER, WEB, RAINDROP)
+TELEGRAM = "telegram"
+SOURCE_TYPES = (YOUTUBE, FOLDER, WEB, RAINDROP, TELEGRAM)
 
 Log = Callable[[str], None]
 PROGRESS_EVERY = 1000   # великі списки: повідомлення про хід роботи й збереження кожну тисячу
@@ -58,9 +59,16 @@ def add_raindrop_source(conn: sqlite3.Connection, name: str, collections: list[i
     return db.add_source(conn, RAINDROP, name, {"collections": collections}, folder or name)
 
 
+def add_telegram_source(conn: sqlite3.Connection, name: str, path: str, chats: list[str] | None = None,
+                        folder: str = "") -> int:
+    """path — тека експорту Telegram Desktop (або її result.json); chats — назви чатів, порожньо — усі."""
+    return db.add_source(conn, TELEGRAM, name, {"path": path, "chats": chats or []}, folder or name)
+
+
 def sync_source(conn: sqlite3.Connection, source: dict[str, Any], log: Log = print) -> tuple[int, int]:
     """Оновлює список елементів джерела. Повертає (нових, усього в джерелі)."""
-    sync = {FOLDER: _sync_folder, WEB: _sync_web, RAINDROP: _sync_raindrop}.get(source["type"], _sync_youtube)
+    sync = {FOLDER: _sync_folder, WEB: _sync_web, RAINDROP: _sync_raindrop,
+            TELEGRAM: _sync_telegram}.get(source["type"], _sync_youtube)
     new = sync(conn, source, log)
     total = conn.execute("SELECT COUNT(*) FROM items WHERE source_id=?", (source["id"],)).fetchone()[0]
     return new, int(total)
@@ -120,6 +128,43 @@ def _sync_raindrop(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -
         log(t("sync.raindrop_error", detail=str(e)))
         return 0
     return _add_links(conn, source, links, log)
+
+
+def _sync_telegram(conn: sqlite3.Connection, source: dict[str, Any], log: Log) -> int:
+    """Експорт Telegram читаємо щоразу заново: новіший експорт у ту саму теку додасть лише нове."""
+    settings = source["settings"]
+    try:
+        export = telegram.read_export(Path(settings.get("path", "")), settings.get("chats") or None,
+                                      t("telegram.saved"))
+    except telegram.ExportError as e:
+        log(t("telegram.no_export", path=str(e)))
+        return 0
+    new = _add_links(conn, source, export.links, log) if export.links else 0
+    added: dict[str, int] = {}
+    pos = len(export.links)
+    for post in export.posts:
+        pos += 1
+        if db.upsert_item(conn, source["id"], post.key, post.list_name, commit=False, kind="post", title=post.title,
+                          author=post.list_name, path=post.date, position=pos):
+            added[post.list_name] = added.get(post.list_name, 0) + 1
+        if db.get_transcript(conn, post.key) is None:
+            db.save_transcript(conn, post.key, post.text)
+    for ref in export.files:
+        pos += 1
+        try:
+            key = folders.file_key(ref.path)
+        except OSError:
+            continue
+        kind = "media" if readers.is_media(ref.path) else "text"
+        if db.upsert_item(conn, source["id"], key, ref.list_name, commit=False, kind=kind, title=ref.title,
+                          author=readers.file_ext(ref.path).lstrip(".").upper(), path=str(ref.path), position=pos):
+            added[ref.list_name] = added.get(ref.list_name, 0) + 1
+    conn.commit()
+    if export.posts or export.files:
+        log(t("telegram.posts_files", posts=len(export.posts), files=len(export.files), new=sum(added.values())))
+    if not (export.links or export.posts or export.files):
+        log(t("telegram.empty"))
+    return new + sum(added.values())
 
 
 def _add_links(conn: sqlite3.Connection, source: dict[str, Any], links: list[web.Link], log: Log) -> int:
@@ -359,9 +404,10 @@ class Processor:
             self.log("  " + t("process.reused"))
             return
 
-        if item["kind"] in ("text", "article"):
+        if item["kind"] in ("text", "article", "post"):
             if self._summarizing:
-                (self._summarize_text if item["kind"] == "text" else self._summarize_article)(item, stats)
+                {"text": self._summarize_text, "article": self._summarize_article,
+                 "post": self._summarize_post}[item["kind"]](item, stats)
             return
         if item["kind"] == "media":
             if self._summarizing:
@@ -370,6 +416,8 @@ class Processor:
         if item["kind"] != "video":
             self._error(item, stats, t("process.unsupported", kind=item["kind"]))
             return
+        if not item["title"] or item["title"] == item["url"]:   # посилання з поста чи списку — без назви
+            self._video_title(item)
         if text is None:
             tr = self._fetch(item, stats)
             if tr is None:
@@ -406,6 +454,13 @@ class Processor:
         self.log("  " + t("process.subtitles", lang=tr.language, chars=len(tr.text),
                           auto=t("process.auto") if tr.generated else ""))
         return tr
+
+    def _video_title(self, item: dict[str, Any]) -> None:
+        """Назва й канал відео через oEmbed (легкий запит без субтитрів): інакше нотатка була б без назви."""
+        entry = youtube.video_info(item["key"].removeprefix("youtube:"))
+        if entry.title != entry.id:
+            item["title"], item["author"] = entry.title, entry.channel or item["author"]
+            db.set_item_meta(self.conn, item["id"], title=item["title"], author=item["author"])
 
     def _count_fetch(self) -> None:
         """Кожен запит до YouTube іде в добовий ліміт — і вдалий, і «субтитрів немає», і з помилкою."""
@@ -611,6 +666,16 @@ class Processor:
         about = ", ".join(x for x in (f"web article, {article.site}", article.author, article.date) if x)
         self._summarize_long(item, stats, article.text, about,
                              extra={"source_author": article.author, "source_date": article.date})
+
+    def _summarize_post(self, item: dict[str, Any], stats: RunStats) -> None:
+        """Довгий пост із Telegram: текст збережено в базі під час оновлення списку."""
+        row = db.get_transcript(self.conn, item["key"])
+        if row is None or not row["text"]:
+            self._no_text_reason(item, stats, t("telegram.post_missing"))
+            return
+        chat, date = item["author"] or "", item["path"] or ""   # у поста немає адреси: path — його дата
+        self._summarize_long(item, stats, row["text"], f"Telegram post, {chat}, {date}".rstrip(", "),
+                             extra={"source_date": date})
 
     def _no_text_reason(self, item: dict[str, Any], stats: RunStats, reason: str) -> None:
         db.mark_no_text(self.conn, item["id"], reason)

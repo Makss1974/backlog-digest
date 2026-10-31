@@ -126,6 +126,13 @@ No problem: the job runs at the first start after its time.
 Menu → 6 shows "Autostart: on ✅" and the result of the last run. The log is the "_Schedule log" note in your
 vault and the files in the `logs` folder of the program folder.
 
+**How do I add Telegram?**
+Without logging in: in Telegram Desktop, Settings → Advanced → Export Telegram data (or in a chat: ⋮ → Export
+chat history), format JSON; tick files if you want documents and voice messages. Then menu → 2 → 5 and the
+export folder (the one with `result.json`). Links, long posts and files become items; each chat is a list.
+A newer export into the same folder adds only what is new. The program never logs in and changes nothing in
+Telegram.
+
 **How do I remove everything?**
 `bdig autostart off`, then `uv tool uninstall backlog-digest`. Delete settings and the database together with
 the program folder (`bdig doctor` shows where it is); your summaries stay in your folder.

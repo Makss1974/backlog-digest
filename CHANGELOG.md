@@ -2,6 +2,18 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Sources
+- **Telegram** without logging in: an export from Telegram Desktop (JSON) — Saved Messages, channels, groups.
+  YouTube links become videos, other links become articles, posts of 800+ characters become texts, documents,
+  audio and voice messages are taken when the export includes files. Each chat is a list; `bdig add <export
+  folder> --only <chat>` or menu → Sources → 5.
+
+### Fixes
+- YouTube links without a title (from posts or plain link lists) get their title and channel before the summary,
+  so the note is no longer named "_".
+
 ## 1.1.0 — videos without subtitles, speech recognition, audio files
 
 ### Sources

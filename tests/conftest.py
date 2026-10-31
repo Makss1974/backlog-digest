@@ -23,6 +23,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(autostart, "_run", lambda args, stdin=None: subprocess.CompletedProcess(args, 1, "", ""))
     # тривалість відео зі сторінки YouTube — без мережі
     monkeypatch.setattr(youtube, "video_duration", lambda vid: None)
+    monkeypatch.setattr(youtube, "video_info", lambda vid: youtube.Entry(vid, vid))   # oEmbed — теж без мережі
     # розпізнавання мовлення — як у CI, де необов'язкового faster-whisper немає (тести вмикають його самі)
     monkeypatch.setattr(whisper, "installed", lambda: False)
     i18n.set_language("en")

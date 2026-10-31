@@ -25,6 +25,7 @@ from . import (
     runstate,
     schedule,
     shortcut,
+    telegram,
     web,
     wizard,
 )
@@ -341,10 +342,11 @@ class Menu:
             print(f"  2. {t('sources.add_folder')}")
             print(f"  3. {t('sources.add_web')}")
             print(f"  4. {t('sources.add_raindrop')}")
-            print(f"  5. {t('sources.sync')}")
-            print(f"  6. {t('sources.delete')}")
+            print(f"  5. {t('sources.add_telegram')}")
+            print(f"  6. {t('sources.sync')}")
+            print(f"  7. {t('sources.delete')}")
             print(f"  0. {t('menu.back')}")
-            choice = ask_int(t("settings.choose"), 0, 0, 6)
+            choice = ask_int(t("settings.choose"), 0, 0, 7)
             if choice == 0:
                 return
             if choice == 1:
@@ -356,8 +358,10 @@ class Menu:
             elif choice == 4:
                 self.add_raindrop()
             elif choice == 5:
-                pipeline.sync_all(self.conn)
+                self.add_telegram()
             elif choice == 6:
+                pipeline.sync_all(self.conn)
+            elif choice == 7:
                 self.delete_source(sources)
             print()
 
@@ -429,6 +433,40 @@ class Menu:
         folder = ask(f"{t('sources.folder')} [{name}]: ") or name
         sid = pipeline.add_web_source(self.conn, name, urls, files, folder, chosen)
         print(t("sources.added_web", name=name))
+        source = db.get_source(self.conn, sid)
+        if source:
+            new, _ = pipeline.sync_source(self.conn, source)
+            print(t("sources.synced", new=new))
+
+    def add_telegram(self) -> None:
+        print(t("sources.telegram_help"))
+        raw = ask(f"{t('sources.telegram_path')}: ").strip('"')
+        if not raw:
+            return
+        path = Path(raw).expanduser()
+        try:
+            chats = telegram.list_chats(path, t("telegram.saved"))
+        except telegram.ExportError:
+            print(t("telegram.no_export", path=raw))
+            return
+        chosen: list[str] = []
+        if len(chats) > 1:
+            print(t("telegram.chats"))
+            for i, chat in enumerate(chats, 1):
+                print(f"  {i:>3}. {chat.name} ({t('telegram.messages', n=chat.messages)})")
+            raw_numbers = ask(t("telegram.choose_chats") + " ")
+            numbers = [int(x) for x in raw_numbers.replace(",", " ").split() if x.isdigit()]
+            chosen = [chats[n - 1].name for n in numbers if 1 <= n <= len(chats)]
+        names = {s["name"] for s in db.list_sources(self.conn)}
+        base = chosen[0] if len(chosen) == 1 else chats[0].name if len(chats) == 1 else "Telegram"
+        default = next(n for n in (f"{base} {i}" if i else base for i in range(100)) if n not in names)
+        name = ask(f"{t('sources.name')} [{default}]: ") or default
+        if name in names:
+            print(t("sources.name_taken", name=name))
+            return
+        folder = ask(f"{t('sources.folder')} [{name}]: ") or name
+        sid = pipeline.add_telegram_source(self.conn, name, str(path), chosen, folder)
+        print(t("sources.added_telegram", name=name))
         source = db.get_source(self.conn, sid)
         if source:
             new, _ = pipeline.sync_source(self.conn, source)

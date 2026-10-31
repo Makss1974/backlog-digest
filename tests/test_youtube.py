@@ -91,7 +91,7 @@ def test_list_error_is_readable(fake_ytdlp):
 
 
 def test_single_video_uses_oembed(monkeypatch):
-    monkeypatch.setattr(youtube, "_single_video", lambda vid: youtube.Entry(vid, "Title", "Chan"))
+    monkeypatch.setattr(youtube, "video_info", lambda vid: youtube.Entry(vid, "Title", "Chan"))
     listing = youtube.list_url("https://youtu.be/dQw4w9WgXcQ")
     assert listing.title == "" and listing.entries[0].title == "Title"
 

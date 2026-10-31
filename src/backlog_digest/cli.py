@@ -69,11 +69,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn: Any) -> int:
-    from . import pipeline, web
+    from . import pipeline, telegram, web
     from .menu import Menu
 
     if args.command == "add" and args.urls[0].lower() == "raindrop":
         return _add_raindrop(conn, paths, args)
+    if args.command == "add" and len(args.urls) == 1 and telegram.is_export(Path(args.urls[0]).expanduser()):
+        return _add_telegram(conn, args)
     if args.command == "add":
         # тека на диску — джерело «папка»; посилання не на YouTube або файл закладок — «статті»;
         # інакше — посилання YouTube
@@ -122,6 +124,23 @@ def run_command(args: argparse.Namespace, paths: Any, cfg: dict[str, Any], conn:
         stats = pipeline.Processor(conn, cfg, paths).run(limit, args.source, STAGES[args.command])
         return 3 if stats.stopped else 0
     Menu(paths, cfg, conn).run(offer_wizard=True)
+    return 0
+
+
+def _add_telegram(conn: Any, args: argparse.Namespace) -> int:
+    """bdig add <тека експорту Telegram Desktop> [--only ЧАТ ...] — посилання, довгі пости й файли з чатів."""
+    from . import pipeline
+
+    path = Path(args.urls[0]).expanduser().resolve()
+    name = args.name or "Telegram"
+    if any(s["name"] == name for s in db.list_sources(conn)):
+        print(t("sources.name_taken", name=name), file=sys.stderr)
+        return 2
+    sid = pipeline.add_telegram_source(conn, name, str(path), args.only or [], args.folder or name)
+    print(t("sources.added_telegram", name=name))
+    source = db.get_source(conn, sid)
+    if source and not args.no_sync:
+        print(t("sources.synced", new=pipeline.sync_source(conn, source)[0]))
     return 0
 
 

@@ -95,3 +95,4 @@ follow_imports = "skip"
 "tests/test_export.py" = ["F811"]
 "tests/test_schedule.py" = ["F811"]
 "tests/test_wizard.py" = ["F811"]   # фікстура env імпортується з test_pipeline
+"tests/test_telegram.py" = ["F811"]

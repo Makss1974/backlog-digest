@@ -159,8 +159,8 @@ def render_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str],
         channel = item.get("author") or ""
         head = " · ".join(x for x in (channel, duration, f"[{L['open_youtube']}]({url})" if url else "") if x)
         meta: dict[str, Any] = {"url": url, "channel": channel, "duration": duration}
-    elif kind == "article":
-        url = item.get("url") or ""
+    elif kind in ("article", "post"):
+        url = item.get("url") or "" if kind == "article" else ""
         site = item.get("author") or ""
         author, date = s.get("source_author") or "", s.get("source_date") or ""
         head = " · ".join(x for x in (site, author, date, f"[{L['open_article']}]({url})" if url else "") if x)
