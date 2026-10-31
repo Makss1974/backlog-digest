@@ -1,7 +1,7 @@
 # backlog-digest
 
-> 🚧 Early stage — stage 3 of 7: YouTube, folders with books, web articles, Raindrop → summaries in Obsidian / Markdown.
-> Рання стадія — етап 3 із 7: YouTube, теки з книгами, веб-статті, Raindrop → конспекти в Obsidian / Markdown.
+> 🚧 Before 1.0 — stage 5 of 7: YouTube, books, web articles, Raindrop → summaries, sorting, index, schedule.
+> До версії 1.0 — етап 5 із 7: YouTube, книги, веб-статті, Raindrop → конспекти, сортування, індекс, розклад.
 
 **EN:** Turn thousands of "saved for later" videos, articles, books and posts into a readable library:
 a summary, a critical score and a "worth it or not" verdict for each item, sorted by topic,
@@ -19,7 +19,52 @@ License / Ліцензія: [MIT](LICENSE).
 
 ---
 
-## Запуск каркаса локально (для розробки)
+## Встановлення
+
+Знадобиться лише [uv](https://docs.astral.sh/uv/) — невелика програма, яка сама поставить потрібний
+Python (3.11 або новіший) і backlog-digest окремо від решти системи. Права адміністратора не потрібні.
+
+**1. Встановіть uv** (один раз):
+
+Windows — у PowerShell:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+macOS і Linux — у Терміналі:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**2. Встановіть backlog-digest** і закрийте-відкрийте вікно терміналу:
+
+```bash
+uv tool install backlog-digest
+uv tool update-shell
+```
+
+> До виходу версії 1.0 пакета ще немає на PyPI — ставте з теки з кодом: `uv tool install D:\шлях\до\backlog-digest`.
+
+**3. Запустіть:**
+
+```bash
+bdig
+```
+
+Під час першого запуску майстер за кілька хвилин усе налаштує: мову, теку для конспектів, ключ моделі
+(безкоштовний Gemini), перше джерело й розклад, — і одразу зробить перший конспект.
+Ярлик на робочому столі: `bdig shortcut`. Перевірка, чи все гаразд: `bdig doctor`.
+
+Додаткові програми потрібні лише для деяких форматів книг (DJVU — DjVuLibre; MOBI/AZW3/DOC — Calibre);
+`bdig doctor` підкаже, чого бракує.
+
+Оновлення — `uv tool upgrade backlog-digest`. Видалення — `bdig autostart off`, потім
+`uv tool uninstall backlog-digest`; налаштування й база лишаються в теці програми (`bdig doctor` показує де),
+конспекти — у вашій теці.
+
+## Запуск з коду (для розробки)
 
 Потрібен Python 3.11 або новіший. Усі пакети ставляться в теку `.venv` усередині проєкту —
 системний Python не змінюється. Команди для PowerShell (Windows):
@@ -211,7 +256,22 @@ Windows — Планувальник завдань (без вікна), macOS �
 `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`) і `RAINDROP_TOKEN` читаються зі змінних середовища або з
 файлу `.env` у теці налаштувань; програма ніколи не показує їхні значення.
 
-## Running the skeleton locally (development)
+## Installation
+
+All you need is [uv](https://docs.astral.sh/uv/): a small tool that installs the right Python (3.11+) and
+backlog-digest apart from the rest of your system. No administrator rights needed.
+
+1. Install uv once — Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`;
+   macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+2. `uv tool install backlog-digest`, then `uv tool update-shell` and reopen the terminal
+   (until 1.0 is on PyPI: `uv tool install /path/to/backlog-digest`).
+3. Run `bdig`. On the first run a wizard sets up the language, the notes folder, a model key (free Gemini),
+   the first source and the schedule, and makes your first summary. Desktop shortcut: `bdig shortcut`;
+   health check: `bdig doctor`.
+
+Upgrade: `uv tool upgrade backlog-digest`. Uninstall: `bdig autostart off`, then `uv tool uninstall backlog-digest`.
+
+## Running from source (development)
 
 Python 3.11+. Create a virtual environment and install in editable mode:
 
