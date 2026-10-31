@@ -55,10 +55,10 @@ def _package_manager_dirs() -> list[str]:
 
 def registry_dirs(name: str) -> list[str]:
     """Теки встановлення програм, у назві яких є name, з реєстру Windows."""
-    try:
-        import winreg
-    except ImportError:
+    if sys.platform != "win32":   # так і mypy на Linux/macOS знає, що winreg тут не потрібен
         return []
+    import winreg
+
     uninstall = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
     keys = [(winreg.HKEY_LOCAL_MACHINE, uninstall),
             (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
