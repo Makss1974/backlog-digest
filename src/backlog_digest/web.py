@@ -240,8 +240,10 @@ def fetch_article(url: str) -> Article:
         return _pdf(data, final_url)
     import trafilatura  # повільний імпорт — лише коли справді потрібен
 
+    # без «широкого пошуку» дати: інакше рік у «© 2026» стає датою статті «2026-01-01»
     doc = trafilatura.bare_extraction(data, url=final_url, with_metadata=True, include_comments=False,
-                                      include_tables=True, favor_recall=True)
+                                      include_tables=True, favor_recall=True,
+                                      date_extraction_params={"extensive_search": False, "original_date": True})
     text = (getattr(doc, "text", None) or "").strip() if doc is not None else ""
     if len(text) < readers.MIN_SCAN_TEXT:
         raise readers.NoText(t("web.no_article"))
