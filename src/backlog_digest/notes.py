@@ -24,6 +24,7 @@ LABEL_KEYS = [
     "verdict_watch", "verdict_partial", "verdict_summary_enough", "verdict_skip",
     "verdict_read", "verdict_read_partial",
     "evidence_high", "evidence_medium", "evidence_low", "evidence_unscientific",
+    "other_topic",
 ]
 
 # Символи, заборонені в іменах файлів Windows, і ті, що ламають [[посилання]] в Obsidian
@@ -31,7 +32,7 @@ _FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f#^\[\]]')
 _RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 MAX_PATH = 240   # з запасом до межі Windows у 260 символів
 MAX_DIR_DEPTH = 5           # глибші теки (закладки бувають вкладені на 10+ рівнів) зливаються в останню
-MAX_DIR = MAX_PATH - 80     # решта — для назви нотатки
+MAX_DIR = MAX_PATH - 60     # решта — для назви нотатки
 
 
 def catalog_labels(lang: str) -> dict[str, str]:
@@ -74,7 +75,9 @@ def sanitize(name: str, max_len: int = 120, fallback: str = "_") -> str:
     s = _FORBIDDEN.sub(" ", s)
     s = re.sub(r"\s+", " ", s).strip().rstrip(". ")
     if len(s) > max_len:
-        s = s[:max_len].rstrip(". ")
+        cut = s[:max_len]
+        space = cut.rfind(" ")
+        s = (cut[:space] if space > max_len // 2 else cut).rstrip(".,;:-— ")   # по цілому слову, якщо можна
     if not s:
         s = fallback
     if s.upper() in _RESERVED:
@@ -101,6 +104,16 @@ def note_path(directory: Path, title: str, unique: str, is_taken: Callable[[Path
     if is_taken(path) or path.exists():
         path = directory / f"{sanitize(title, min(100, room))} ({unique}).md"
     return path
+
+
+def remove_empty_dirs(d: Path, stop: Path) -> None:
+    """Прибирає порожні теки від d угору до stop (не включно) — після переїзду нотатки в іншу тему."""
+    try:
+        while d.resolve() != stop.resolve() and d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+            d = d.parent
+    except OSError:
+        pass
 
 
 def write_note(path: Path, content: str) -> None:
@@ -159,6 +172,7 @@ def render_note(item: dict[str, Any], s: dict[str, Any], labels: dict[str, str],
         "title": item.get("title") or "",
         **meta,
         "list": item.get("list_name") or "",
+        "topic": item.get("topic") or "",
         "score": s["score"],
         "verdict": verdict,
         "evidence": evidence,

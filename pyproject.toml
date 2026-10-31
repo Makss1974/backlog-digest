@@ -60,3 +60,6 @@ check_untyped_defs = true
 [[tool.mypy.overrides]]
 module = ["yt_dlp", "yt_dlp.*"]
 ignore_missing_imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_library.py" = ["F811"]   # фікстура env імпортується з test_pipeline

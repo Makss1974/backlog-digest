@@ -31,7 +31,7 @@ class Menu:
             ("1", t("menu.stats"), self.show_stats),
             ("2", t("menu.sources"), self.sources_menu),
             ("3", t("menu.summaries"), self.process),
-            ("4", t("menu.sorting"), soon(4)),
+            ("4", t("menu.sorting"), self.sort),
             ("5", t("menu.raindrop"), soon(4)),
             ("6", t("menu.schedule"), soon(5)),
             ("7", t("menu.doctor"), self.run_doctor),
@@ -138,6 +138,11 @@ class Menu:
             print(f"\n{t('stats.eta', days=days, per_day=per_day)}")
         if not sources:
             print(f"\n{t('stats.no_sources')}")
+
+    def sort(self) -> None:
+        from . import sorting_menu
+
+        sorting_menu.run(self.conn, self.cfg, self.paths)
 
     def run_doctor(self) -> None:
         doctor.run(self.paths)

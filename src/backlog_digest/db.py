@@ -114,6 +114,20 @@ MIGRATIONS: list[str] = [
         requests INTEGER NOT NULL DEFAULT 0
     );
     """,
+    # 5 — сортування за темами: схема тем для списку й тема кожного елемента
+    """
+    ALTER TABLE items ADD COLUMN topic TEXT;      -- «Тема» або «Тема/Підтема»; NULL — ще не розкладено
+    CREATE TABLE schemes (
+        source_id  INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+        list_name  TEXT NOT NULL,
+        mode       TEXT NOT NULL,                 -- manual / importance / auto
+        topics     TEXT NOT NULL DEFAULT '[]',    -- json: ["Тема", "Тема/Підтема", ..., «Інше»]
+        criteria   TEXT NOT NULL DEFAULT '',      -- правила сортування словами
+        report     TEXT,                          -- json: звіт (повтори, не в темі)
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (source_id, list_name)
+    );
+    """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -206,7 +220,7 @@ def queued_by_source(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 # ---------------------------------------------------------------- елементи
 
-_ITEM_META = ("kind", "title", "author", "url", "path", "duration", "position")
+_ITEM_META = ("kind", "title", "author", "url", "path", "duration", "position", "topic")
 
 
 def upsert_item(conn: sqlite3.Connection, source_id: int, key: str, list_name: str = "", *, commit: bool = True,
@@ -284,6 +298,10 @@ def _set(conn: sqlite3.Connection, item_id: int, **fields: Any) -> None:
     cols = ", ".join(f"{k}=?" for k in fields)
     conn.execute(f"UPDATE items SET {cols} WHERE id=?", (*fields.values(), item_id))
     conn.commit()
+
+
+def set_note_path(conn: sqlite3.Connection, item_id: int, note_path: str) -> None:
+    _set(conn, item_id, note_path=note_path)
 
 
 def mark_done(conn: sqlite3.Connection, item_id: int, note_path: str | None = None) -> None:
@@ -392,3 +410,57 @@ def status_counts(conn: sqlite3.Connection) -> dict[str, int]:
     for r in conn.execute("SELECT status, COUNT(*) n FROM items GROUP BY status"):
         counts[r["status"]] = r["n"]
     return counts
+
+
+# ---------------------------------------------------------------- сортування
+
+def done_lists(conn: sqlite3.Connection, language: str) -> list[sqlite3.Row]:
+    """Списки, у яких є готові конспекти: джерело, список, скільки готово, скільки без теми."""
+    return conn.execute(
+        "SELECT i.source_id, s.name AS source_name, i.list_name, COUNT(*) AS done, "
+        "SUM(i.topic IS NULL) AS unsorted FROM items i JOIN sources s ON s.id=i.source_id "
+        "WHERE i.status='done' AND i.key IN (SELECT key FROM results WHERE language=?) "
+        "GROUP BY i.source_id, i.list_name ORDER BY s.name, i.list_name", (language,)).fetchall()
+
+
+def done_items(conn: sqlite3.Connection, source_id: int, list_name: str, language: str) -> list[dict[str, Any]]:
+    """Готові елементи списку разом із конспектом (поле "s")."""
+    out = []
+    for r in conn.execute(
+            "SELECT i.*, r.summary_json FROM items i JOIN results r ON r.key=i.key AND r.language=? "
+            "WHERE i.source_id=? AND i.list_name=? AND i.status='done' ORDER BY i.position, i.id",
+            (language, source_id, list_name)):
+        d = dict(r)
+        d["s"] = json.loads(d.pop("summary_json"))
+        out.append(d)
+    return out
+
+
+def get_scheme(conn: sqlite3.Connection, source_id: int, list_name: str) -> dict[str, Any] | None:
+    r = conn.execute("SELECT * FROM schemes WHERE source_id=? AND list_name=?", (source_id, list_name)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["topics"] = json.loads(d["topics"])
+    d["report"] = json.loads(d["report"]) if d["report"] else None
+    return d
+
+
+def save_scheme(conn: sqlite3.Connection, source_id: int, list_name: str, mode: str, topics: list[str],
+                criteria: str) -> None:
+    conn.execute(
+        "INSERT INTO schemes (source_id, list_name, mode, topics, criteria, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(source_id, list_name) DO UPDATE SET mode=excluded.mode, topics=excluded.topics, "
+        "criteria=excluded.criteria, updated_at=excluded.updated_at",
+        (source_id, list_name, mode, json.dumps(topics, ensure_ascii=False), criteria, now()))
+    conn.commit()
+
+
+def save_report(conn: sqlite3.Connection, source_id: int, list_name: str, report: dict[str, Any]) -> None:
+    conn.execute("UPDATE schemes SET report=?, updated_at=? WHERE source_id=? AND list_name=?",
+                 (json.dumps(report, ensure_ascii=False), now(), source_id, list_name))
+    conn.commit()
+
+
+def lists_with_scheme(conn: sqlite3.Connection) -> list[tuple[int, str]]:
+    return [(r[0], r[1]) for r in conn.execute("SELECT source_id, list_name FROM schemes WHERE topics<>'[]'")]

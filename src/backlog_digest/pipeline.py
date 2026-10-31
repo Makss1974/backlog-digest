@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import random
 import shutil
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import db, folders, keys, notes, raindrop, readers, runstate, summarize, web, youtube
+from . import db, folders, keys, library, notes, raindrop, readers, runstate, summarize, web, youtube
 from .i18n import t
 from .llm import Chain, LLMError, QuotaExhausted, short
 from .paths import Paths, get_paths
@@ -233,9 +234,23 @@ class Processor:
     def run(self, limit: int, source_id: int | None = None, stage: str = ALL) -> RunStats:
         runstate.start(self.paths, stage, db.now())   # меню в іншому вікні побачить, що обробка йде
         try:
-            return self._run(limit, source_id, stage)
+            stats = self._run(limit, source_id, stage)
+            if stats.done and self._summarizing:
+                self._assign_new()
+            return stats
         finally:
             runstate.finish(self.paths)
+
+    def _assign_new(self) -> None:
+        """Нові конспекти — у схеми тем їхніх списків (якщо список уже розсортовано)."""
+        try:
+            n = library.assign_new(self.conn, self.chain, self.language, self.labels()["other_topic"],
+                                   self.rewrite, self.log)
+        except (LLMError, ValueError) as e:   # не вийшло — розкладуться наступного разу
+            self.log("  " + t("sort.assign_failed", detail=short(str(e), 200)))
+            return
+        if n:
+            self.log(t("sort.assigned", n=n))
 
     def _run(self, limit: int, source_id: int | None, stage: str) -> RunStats:
         """Обробка черги. stage: fetch — лише зібрати тексти (повільно, з вашої IP, моделі не потрібні);
@@ -489,16 +504,30 @@ class Processor:
         return True
 
     def _write(self, item: dict[str, Any], summary: dict[str, Any]) -> Path:
-        source = self.sources.get(item["source_id"]) or {}
-        directory = notes.note_dir(self.root, source.get("output_dir") or source.get("name") or "",
-                                   item["list_name"])
-        path = Path(item["note_path"]) if item.get("note_path") else notes.note_path(
+        path = self.rewrite(item, summary, processed=db.now())
+        db.mark_done(self.conn, item["id"], str(path))
+        return path
+
+    def rewrite(self, item: dict[str, Any], summary: dict[str, Any], processed: str = "") -> Path:
+        """Пише нотатку в теку списку (і теми, якщо список розсортовано). Тема змінилась — нотатка
+        переїжджає: стару видаляємо, порожні теки за нею теж."""
+        source = self.sources.get(item["source_id"]) or db.get_source(self.conn, item["source_id"]) or {}
+        base = notes.note_dir(self.root, source.get("output_dir") or source.get("name") or "", item["list_name"])
+        directory = notes.note_dir(base, item.get("topic") or "")
+        old = Path(item["note_path"]) if item.get("note_path") else None
+        path = old if old and old.parent == directory else notes.note_path(
             directory, item["title"] or "", item["key"].split(":")[-1],
             lambda p: db.note_path_taken(self.conn, str(p), item["id"]))
         content = notes.render_note(item, summary, self.labels(), language=self.language,
-                                    processed=db.now(), duration=youtube.format_duration(item["duration"]))
+                                    processed=processed or item.get("processed_at") or db.now(),
+                                    duration=youtube.format_duration(item["duration"]))
         notes.write_note(path, content)
-        db.mark_done(self.conn, item["id"], str(path))
+        if old and old != path:
+            with contextlib.suppress(OSError):
+                old.unlink(missing_ok=True)
+                notes.remove_empty_dirs(old.parent, base)
+            db.set_note_path(self.conn, item["id"], str(path))
+        item["note_path"] = str(path)
         return path
 
     def _error(self, item: dict[str, Any], stats: RunStats, message: str) -> None:
