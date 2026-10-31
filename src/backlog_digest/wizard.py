@@ -71,9 +71,10 @@ def run(menu: Menu) -> None:
     step(4, t("wizard.title_source"))
     print(t("wizard.source_help"))
     print(f"  1. {t('sources.add_youtube')}\n  2. {t('sources.add_folder')}\n  3. {t('sources.add_web')}\n"
-          f"  4. {t('sources.add_raindrop')}\n  0. {t('wizard.skip')}")
-    choice = ask_int(t("settings.choose"), 1, 0, 4)
-    action = {1: menu.add_youtube, 2: menu.add_folder, 3: menu.add_web, 4: menu.add_raindrop}.get(choice)
+          f"  4. {t('sources.add_raindrop')}\n  5. {t('sources.add_telegram')}\n  0. {t('wizard.skip')}")
+    choice = ask_int(t("settings.choose"), 1, 0, 5)
+    action = {1: menu.add_youtube, 2: menu.add_folder, 3: menu.add_web, 4: menu.add_raindrop,
+              5: menu.add_telegram}.get(choice)
     if action:
         action()
 
