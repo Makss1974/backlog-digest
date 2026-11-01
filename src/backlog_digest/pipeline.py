@@ -307,6 +307,7 @@ class Processor:
         self._fetched_before = False
         self._fetching = self._summarizing = True
         self._watching = True   # Gemini ще не вичерпав ліміт на перегляд відео
+        self._watch_blocked = False   # у хмарі YouTube обмежив запити — відео без субтитрів дивиться Gemini
         self._mode: str | None = None   # що робити з відео без субтитрів (див. _no_subtitles_mode)
         self._fetch_left = 0
         self._touched: set[tuple[int, str]] = set()   # списки з новими нотатками — оновити їхні індекси
@@ -421,7 +422,8 @@ class Processor:
             if (item["kind"] == "video" and text is not None and text["text"] is None and saved is None
                     and mode == "whisper"):   # звук розпізнаємо на кроці збору (потрібен YouTube)
                 continue
-            if needs_fetch and not self._fetching:   # тексту ще немає, а звертатися до YouTube зараз не можна
+            watch_now = needs_fetch and self._watch_blocked and self._summarizing and self._watching
+            if needs_fetch and not self._fetching and not watch_now:   # тексту немає, а до YouTube зараз не можна
                 if self._fetch_left <= 0 and not limit_logged:
                     self.log("\n" + t("process.daily_limit", limit=per_day))
                     limit_logged = True
@@ -431,11 +433,26 @@ class Processor:
             where = f"  ({item['list_name']})" if item["list_name"] else ""
             self.log(f"\n[{i}/{len(rows)}] {item['title'] or item['url'] or ''}{where}")
             try:
-                self._process(item, text, saved, stats)
+                if watch_now:
+                    self._watch(item, stats)
+                else:
+                    self._process(item, text, saved, stats)
             except youtube.BlockedError as e:
+                self._fetching = False
+                if self.cfg.get("_cloud") and self._no_subtitles_mode() == "gemini" and self.chain.can_watch():
+                    # у хмарі блок — звичайна справа: Gemini відкриває відео сам, YouTube з нашої адреси не потрібен
+                    self.log(t("process.blocked_watch"))
+                    self._watch_blocked = True
+                    try:
+                        if self._summarizing and self._watching:
+                            self._watch(item, stats)
+                    except QuotaExhausted:
+                        self.log(t("process.quota"))
+                        stats.stopped = "quota"
+                        self._summarizing = False
+                    continue
                 self.log(t("process.blocked", detail=str(e)))
                 stats.stopped = "blocked"
-                self._fetching = False
             except QuotaExhausted:
                 self.log(t("process.quota"))
                 stats.stopped = "quota"

@@ -157,6 +157,23 @@ def test_blocked_youtube_stops_the_run(env, monkeypatch):
     assert db.status_counts(env.conn)[db.NEW] == 3       # нічого не зіпсовано, усе лишилось у черзі
 
 
+
+def test_blocked_youtube_in_cloud_lets_gemini_watch(env, monkeypatch):
+    sync(env)
+    tried = []
+
+    def blocked(vid, langs):
+        tried.append(vid)
+        raise youtube.BlockedError("HTTP 429")
+
+    monkeypatch.setattr(youtube, "fetch_transcript", blocked)
+    env.cfg["_cloud"] = True
+    chain = FakeChain(watcher=True)
+    stats = env.make(chain).run(limit=10)
+    assert (stats.done, stats.errors, stats.stopped) == (3, 0, "")
+    assert len(tried) == 1 and len(chain.watched) == 3     # після блоку YouTube більше не питаємо
+    assert any("Gemini will watch" in line for line in env.logs)
+
 def test_quota_stops_the_run_without_marking_errors(env):
     sync(env)
     stats = env.make(FakeChain([GOOD, llm.QuotaExhausted("all")])).run(limit=10)

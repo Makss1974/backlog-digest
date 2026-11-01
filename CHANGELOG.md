@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixes
+- Cloud mode: when YouTube refuses subtitles to the server, Gemini watches the videos instead of the run
+  stopping until tomorrow.
+
 ## 1.3.0 — cloud mode, public Telegram channels
 
 ### Cloud mode (optional)
