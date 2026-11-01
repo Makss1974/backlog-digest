@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.3.1 — cloud: Gemini watches when YouTube refuses
 
 ### Fixes
 - Cloud mode: when YouTube refuses subtitles to the server, Gemini watches the videos instead of the run
