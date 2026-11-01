@@ -15,3 +15,6 @@ token.json
 *.session
 cookies*.txt
 data/
+
+# особисті дані автора поруч із кодом (база, хмарна тека, архів) / personal data next to the code
+/_personal/
