@@ -158,7 +158,7 @@ def test_blocked_youtube_stops_the_run(env, monkeypatch):
 
 
 
-def test_blocked_youtube_in_cloud_lets_gemini_watch(env, monkeypatch):
+def test_blocked_youtube_lets_gemini_watch(env, monkeypatch):
     sync(env)
     tried = []
 
@@ -167,7 +167,6 @@ def test_blocked_youtube_in_cloud_lets_gemini_watch(env, monkeypatch):
         raise youtube.BlockedError("HTTP 429")
 
     monkeypatch.setattr(youtube, "fetch_transcript", blocked)
-    env.cfg["_cloud"] = True
     chain = FakeChain(watcher=True)
     stats = env.make(chain).run(limit=10)
     assert (stats.done, stats.errors, stats.stopped) == (3, 0, "")

@@ -307,7 +307,7 @@ class Processor:
         self._fetched_before = False
         self._fetching = self._summarizing = True
         self._watching = True   # Gemini ще не вичерпав ліміт на перегляд відео
-        self._watch_blocked = False   # у хмарі YouTube обмежив запити — відео без субтитрів дивиться Gemini
+        self._watch_blocked = False   # YouTube обмежив запити — відео без субтитрів дивиться Gemini
         self._mode: str | None = None   # що робити з відео без субтитрів (див. _no_subtitles_mode)
         self._fetch_left = 0
         self._touched: set[tuple[int, str]] = set()   # списки з новими нотатками — оновити їхні індекси
@@ -439,8 +439,8 @@ class Processor:
                     self._process(item, text, saved, stats)
             except youtube.BlockedError as e:
                 self._fetching = False
-                if self.cfg.get("_cloud") and self._no_subtitles_mode() == "gemini" and self.chain.can_watch():
-                    # у хмарі блок — звичайна справа: Gemini відкриває відео сам, YouTube з нашої адреси не потрібен
+                if self._no_subtitles_mode() == "gemini" and self.chain.can_watch():
+                    # Gemini відкриває відео сам, YouTube з нашої адреси для цього не потрібен
                     self.log(t("process.blocked_watch"))
                     self._watch_blocked = True
                     try:

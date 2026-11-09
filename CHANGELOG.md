@@ -2,6 +2,15 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixes
+- When YouTube blocks subtitle requests from your address (on a home computer too, not only in the cloud),
+  Gemini watches the remaining videos instead of the run giving up on YouTube until tomorrow
+  (with `no_subtitles = "gemini"`).
+- The queue takes items from all sources in turn. A huge source (say, 25 000 bookmarks) no longer takes
+  every daily slot while the YouTube playlists wait.
+
 ## 1.3.1 — cloud: Gemini watches when YouTube refuses
 
 ### Fixes

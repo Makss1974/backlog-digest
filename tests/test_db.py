@@ -85,6 +85,16 @@ def test_pending_order_and_filters(conn, source):
     assert len(db.pending(conn, 10, source_id=source)) == 2
 
 
+def test_pending_takes_sources_in_turn(conn, source):
+    big = db.add_source(conn, "raindrop", "Big", {}, "Big")
+    for i in range(5):
+        db.upsert_item(conn, big, f"b{i}", "0. A", position=i)   # «0. A» за абеткою раніше за «L»
+    for i in range(2):
+        db.upsert_item(conn, source, f"y{i}", "L", position=i)
+    assert [r["key"] for r in db.pending(conn, 5)] == ["y0", "b0", "y1", "b1", "b2"]
+    assert [r["key"] for r in db.pending(conn, 2, source_id=big)] == ["b0", "b1"]
+
+
 def test_attempt_limit(conn, source):
     db.upsert_item(conn, source, "k")
     [item] = item_ids(conn)

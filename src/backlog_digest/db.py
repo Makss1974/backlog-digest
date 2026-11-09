@@ -311,6 +311,7 @@ def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
             list_name: str | None = None, newest_first: bool = False, stage: str = ALL,
             language: str = "", skip_kinds: tuple[str, ...] = ()) -> list[sqlite3.Row]:
     """Черга: спершу нові, потім ті, що впали з помилкою; у порядку списку (або з кінця списку).
+    Без source_id джерела йдуть по черзі (по одному з кожного), щоб велике не забирало всю чергу.
     skip_kinds — не брати елементи цих видів (у хмарі — файли з диска комп'ютера)."""
     where, args = _stage_filter(stage, language)
     sql = "SELECT * FROM items WHERE status IN (?, ?)" + where
@@ -325,7 +326,12 @@ def pending(conn: sqlite3.Connection, limit: int, source_id: int | None = None,
         sql += " AND list_name=?"
         args.append(list_name)
     order = "DESC" if newest_first else "ASC"
-    sql += f" ORDER BY status = 'error', list_name, position {order}, id {order} LIMIT ?"
+    inner = f"status = 'error', list_name, position {order}, id {order}"
+    if source_id is not None:
+        sql += f" ORDER BY {inner} LIMIT ?"
+    else:
+        sql = (f"SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY {inner}) AS turn"
+               f" FROM ({sql})) ORDER BY status = 'error', turn, source_id LIMIT ?")
     args.append(limit)
     return conn.execute(sql, args).fetchall()
 
