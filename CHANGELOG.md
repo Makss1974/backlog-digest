@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.3.2 — YouTube playlists get their turn
 
 ### Fixes
 - When YouTube blocks subtitle requests from your address (on a home computer too, not only in the cloud),
